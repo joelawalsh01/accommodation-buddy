@@ -1,6 +1,6 @@
 # Accommodation Buddy
 
-A web application that helps teachers accommodate lesson materials for multilingual learners (MLLs). Teachers upload classroom documents (PDFs, DOCX, PPTX, images), and AI-powered plugins generate scaffolded accommodations — sentence frames, vocabulary cards, translations, instructional strategies, and more — all calibrated to each student's WIDA English proficiency level.
+A web application that helps teachers accommodate lesson materials for multilingual learners (MLLs). Teachers upload classroom documents (PDFs, DOCX, PPTX, images), and AI-powered plugins generate scaffolded accommodations — sentence frames, vocabulary cards, translations, instructional strategies, and more — all calibrated to each student's ELPAC English proficiency level (1-4).
 
 ## Prerequisites
 
@@ -59,7 +59,7 @@ All configuration is in `.env`. Key settings:
 Upload PDFs, DOCX, PPTX, or image files. The system automatically extracts text — DOCX/PPTX via native Python parsers, PDFs and images via the DeepSeek OCR model through Ollama. Real-time progress tracking shows each step (converting pages, loading model, processing page N of M).
 
 ### Sentence Frames Generator
-Generates fill-in-the-blank sentence frames and sentence starters matched to a student's WIDA proficiency level (1-6). Lower levels get heavily scaffolded frames; higher levels get open-ended starters. Includes L1 bridge hints that translate key academic terms into the student's heritage language.
+Generates fill-in-the-blank sentence frames and sentence starters matched to a student's ELPAC proficiency level (1-4). Lower levels get heavily scaffolded frames; higher levels get open-ended starters. Includes L1 bridge hints that translate key academic terms into the student's heritage language.
 
 ### Frontloaded Vocabulary
 Uses word-frequency analysis (via `wordfreq`) to identify rare and academic vocabulary in a document, then generates student-friendly vocabulary cards with simple definitions, heritage-language translations, and specific teaching strategies (gesture, visual cue, realia, example sentence).
@@ -74,13 +74,22 @@ Takes activity instructions from a document and explains them in the student's h
 Finds cognate pairs between English and the student's heritage language. For Spanish, uses a built-in dictionary of 120+ academic cognates with etymological roots and teaching notes. For other languages, uses AI to identify cognates from the document text.
 
 ### Teacher Strategy Talk
-Generates whole-class instructional strategies: student grouping recommendations (based on proficiency data and shared L1), activity modifications tiered by WIDA level, and a list of specific materials to prepare (anchor charts, graphic organizers, word walls, translated handouts). Follows SIOP, WIDA Can-Do, and Kagan cooperative learning frameworks.
+Generates whole-class instructional strategies: student grouping recommendations (based on proficiency data and shared L1), activity modifications tiered by ELPAC level, and a list of specific materials to prepare (anchor charts, graphic organizers, word walls, translated handouts). Follows SIOP, ELPAC, and Kagan cooperative learning frameworks.
 
-### Language Assessment (WIDA Chat)
-Conducts an informal, multi-turn conversational assessment aligned to WIDA levels 1-6. The AI has a friendly conversation that progresses from social language to academic discourse, then estimates the student's proficiency level with domain scores and evidence summary.
+### Language Assessment (ELPAC Chat)
+Conducts an informal, multi-turn text-based assessment aligned to ELPAC levels 1-4. The AI evaluates reading and writing proficiency through a progressive conversation that mirrors ELPAC task types — describing, recounting, academic explaining, and justifying opinions. Produces an estimated proficiency level with evidence summary, strengths, and areas for growth.
 
 ### New Language Dialogue
 Provides structured practice conversations for newly taught English language concepts. The AI acts as a supportive conversation partner, using recasting (modeling correct usage naturally) rather than explicit correction. Generates feedback summaries and glossary entries after the session.
+
+### Model Settings (Per-Teacher)
+Each teacher can choose which Ollama models to use for each role — scaffolding, OCR, and translation — via the Settings page (`/settings`). Models are only loaded into GPU/RAM when actually used (e.g., the translation model only loads when a teacher runs the Translation plugin). Settings include:
+
+- **Model selection dropdowns** populated from available Ollama models, with a "System default" fallback option for each role
+- **Memory management** — control how long models stay loaded after use: unload immediately, keep for 5 or 30 minutes, or keep indefinitely
+- **Models in Memory** — live view of currently loaded models with one-click unload buttons (auto-refreshes every 10 seconds)
+
+If no custom settings are saved, the system defaults from `.env` are used. Settings are stored per-teacher in the database, so each teacher can have different model preferences.
 
 ### Feature Toggle Manager
 Per-class toggle system that lets teachers enable or disable individual plugins. Each class can have a different set of active accommodations.
@@ -100,7 +109,7 @@ The file is heavily commented with plain-English explanations of what each promp
 ```
 src/accommodation_buddy/
   api/
-    routes/          # FastAPI route handlers (auth, classes, students, documents, etc.)
+    routes/          # FastAPI route handlers (auth, classes, students, documents, settings, etc.)
     deps.py          # Dependency injection (DB sessions, auth, plugin registry)
   core/
     base_plugin.py   # Plugin ABC, manifest dataclass, shared types
@@ -109,12 +118,13 @@ src/accommodation_buddy/
     panel_host.py    # Sidebar panel renderer
     prompts.py       # ALL system prompts in one place
   db/
-    models.py        # SQLAlchemy ORM models (9 tables)
+    models.py        # SQLAlchemy ORM models (10 tables)
     session.py       # Async DB session factory
     migrations/      # Alembic migrations
   plugins/           # Self-registering accommodation plugins (11 total)
   services/
     ollama_client.py # Async Ollama HTTP client
+    model_settings.py # Per-teacher model preference resolution
     document_parser.py # DOCX/PPTX/PDF text extraction
   tasks/
     celery_app.py    # Celery configuration

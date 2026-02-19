@@ -93,14 +93,16 @@ FastAPI Route (documents.py:run_plugin_endpoint)
     ├── db.get(Document) → extracted_text
     ├── db.get(Student) → StudentProfile dataclass
     ├── db.get(Class) → ClassProfile dataclass
+    ├── get_teacher_model_settings(teacher.id) → ResolvedModelSettings
     │
-    ├── plugin.generate(document_text, student_profile, class_profile, options)
+    ├── plugin.generate(document_text, student_profile, class_profile,
+    │                    options={"_model_settings": model_settings})
     │       │
     │       ├── Format prompt from prompts.py templates
-    │       └── OllamaClient.generate(prompt, system) → raw JSON string
+    │       └── OllamaClient.generate(prompt, system, model=ms.model, keep_alive=ms.keep_alive)
     │               │
     │               └── POST http://ollama:11434/api/generate
-    │                       model: qwen3:8b
+    │                       model: (teacher's chosen scaffolding model)
     │                       → JSON response parsed into dict
     │
     ├── Save Accommodation row to DB
@@ -285,9 +287,22 @@ No registration code, no imports to add. Drop the file in and it works.
                    │ │ assessed_at      │   │ source_doc_id(FK)│
                    │ └──────────────────┘   │ created_at       │
                    │                        └──────────────────┘
+                   │
+                   │ ┌──────────────────────┐
+                   │ │ teacher_model_       │
+                   │ │ settings             │
+                   │ ├──────────────────────┤
+                   │ │ id (PK)              │
+                   └─│ teacher_id (FK, UQ)  │
+                     │ scaffolding_model    │  (nullable — NULL = system default)
+                     │ ocr_model            │  (nullable)
+                     │ translation_model    │  (nullable)
+                     │ keep_alive           │  (default "5m")
+                     │ updated_at           │
+                     └──────────────────────┘
 ```
 
-9 tables total. All models use SQLAlchemy 2.0 `Mapped` annotations with async sessions via `asyncpg`.
+10 tables total. All models use SQLAlchemy 2.0 `Mapped` annotations with async sessions via `asyncpg`.
 
 ## Key Architectural Decisions
 
@@ -309,6 +324,15 @@ All LLM system prompts and user prompt templates live in `core/prompts.py`. This
 
 ### Cookie-Based Auth (No Session Middleware)
 Authentication uses `itsdangerous.URLSafeSerializer` to sign cookies directly. No Starlette SessionMiddleware. This avoids the Starlette assertion error that fires when anything touches `request.session` without the middleware installed, and keeps the auth layer minimal.
+
+### Per-Teacher Model Settings
+Each teacher can choose which Ollama model to use for each role (scaffolding, OCR, translation) and control how long models stay loaded in memory. The wiring works as follows:
+
+- `services/model_settings.py` resolves a teacher's preferences into a `ResolvedModelSettings` dataclass, falling back to system defaults from `.env` for any unset fields.
+- **HTTP routes** (documents.py, assessment.py) resolve settings and pass them to plugins via `options["_model_settings"]`.
+- **Each plugin** extracts `_model_settings` from the options dict and passes `model` + `keep_alive` to OllamaClient calls.
+- **Celery tasks** accept an optional `teacher_id` param and resolve settings inside the task (the dataclass is not serialized through the broker).
+- The settings page (`/settings`) queries Ollama's `/api/tags` for available models and `/api/ps` for currently loaded models.
 
 ### Async Everything (Except Celery)
 FastAPI routes use `async/await` throughout. Database access is via `asyncpg` + SQLAlchemy async sessions. The Ollama client uses `httpx.AsyncClient`. The only sync code runs in Celery workers, which spin up their own async event loops via `asyncio.new_event_loop()` to call the same async code paths.
@@ -358,23 +382,25 @@ accommodation_buddy/
 │       ├── students.py        # CRUD for students
 │       ├── documents.py       # Upload, list, view, status polling, plugin execution
 │       ├── features.py        # GET/POST feature toggles per class
-│       └── assessment.py      # Multi-turn assessment chat
+│       ├── assessment.py      # Multi-turn assessment chat
+│       └── settings.py        # Per-teacher model selection & memory management
 │
 ├── plugins/                   # Auto-discovered — each file = one plugin
 │   ├── ocr.py                 # Document text extraction (always-on)
 │   ├── translation.py         # English → Spanish translation
-│   ├── sentence_frames.py     # WIDA-aligned sentence frames/starters
+│   ├── sentence_frames.py     # ELPAC-aligned sentence frames/starters
 │   ├── frontloaded_vocab.py   # Rare word identification + vocab cards
 │   ├── instruction_explainer.py # L1 instruction explanations
 │   ├── cognates.py            # Cognate pair identification
 │   ├── teacher_strategy.py    # Whole-class strategy generation
-│   ├── language_assessment.py # Multi-turn WIDA assessment chat
+│   ├── language_assessment.py # Multi-turn ELPAC assessment chat
 │   ├── new_language_dialogue.py # Practice conversation partner
 │   ├── glossary.py            # Personal glossary management (DB-only, no LLM)
 │   └── pause_teacher.py       # Stub — not yet implemented
 │
 ├── services/
-│   ├── ollama_client.py       # Async HTTP client for Ollama (generate + chat + stream)
+│   ├── ollama_client.py       # Async HTTP client for Ollama (generate + chat + stream + list/unload)
+│   ├── model_settings.py      # Per-teacher model preference resolution with system-default fallback
 │   └── document_parser.py     # DOCX/PPTX/PDF extraction utilities
 │
 ├── tasks/
@@ -382,7 +408,7 @@ accommodation_buddy/
 │   └── plugin_tasks.py        # process_document_ocr, run_plugin background tasks
 │
 ├── db/
-│   ├── models.py              # 9 SQLAlchemy ORM models
+│   ├── models.py              # 10 SQLAlchemy ORM models
 │   ├── session.py             # Async session factory + get_db dependency
 │   └── migrations/            # Alembic migration scripts
 │

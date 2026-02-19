@@ -219,11 +219,9 @@ a:hover { text-decoration: underline; }
     color: white;
 }
 .level-1 { background: #dc2626; }
-.level-2 { background: #ea580c; }
-.level-3 { background: #d97706; }
-.level-4 { background: #65a30d; }
-.level-5 { background: #16a34a; }
-.level-6 { background: #0284c7; }
+.level-2 { background: #d97706; }
+.level-3 { background: #65a30d; }
+.level-4 { background: #0284c7; }
 
 /* === Auth === */
 .auth-container {
