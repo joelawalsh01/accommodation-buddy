@@ -12,6 +12,7 @@ class ResolvedModelSettings:
     scaffolding_model: str
     ocr_model: str
     translation_model: str
+    vision_model: str
     keep_alive: str
 
     def model_for_role(self, role: str) -> str:
@@ -23,6 +24,7 @@ def _system_defaults() -> ResolvedModelSettings:
         scaffolding_model=settings.scaffolding_model,
         ocr_model=settings.ocr_model,
         translation_model=settings.translation_model,
+        vision_model=settings.vision_model,
         keep_alive="5m",
     )
 
@@ -44,6 +46,7 @@ async def get_teacher_model_settings(
         scaffolding_model=row.scaffolding_model or defaults.scaffolding_model,
         ocr_model=row.ocr_model or defaults.ocr_model,
         translation_model=row.translation_model or defaults.translation_model,
+        vision_model=row.vision_model or defaults.vision_model,
         keep_alive=row.keep_alive or defaults.keep_alive,
     )
 
@@ -54,6 +57,7 @@ async def save_teacher_model_settings(
     scaffolding_model: str | None = None,
     ocr_model: str | None = None,
     translation_model: str | None = None,
+    vision_model: str | None = None,
     keep_alive: str = "5m",
 ) -> TeacherModelSettings:
     result = await db.execute(
@@ -70,6 +74,7 @@ async def save_teacher_model_settings(
     row.scaffolding_model = scaffolding_model or None
     row.ocr_model = ocr_model or None
     row.translation_model = translation_model or None
+    row.vision_model = vision_model or None
     row.keep_alive = keep_alive
 
     await db.commit()

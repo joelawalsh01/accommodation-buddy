@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     scaffolding_model: str = "qwen3:8b"
     ocr_model: str = "deepseek-ocr"
     translation_model: str = "aya:8b"
+    vision_model: str = "minicpm-v"
 
     # Database
     database_url: str = "postgresql+asyncpg://buddy:buddypass@postgres:5432/accommodation_buddy"

@@ -224,6 +224,7 @@ class TeacherModelSettings(Base):
     scaffolding_model: Mapped[str | None] = mapped_column(String(255), nullable=True)
     ocr_model: Mapped[str | None] = mapped_column(String(255), nullable=True)
     translation_model: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    vision_model: Mapped[str | None] = mapped_column(String(255), nullable=True)
     keep_alive: Mapped[str] = mapped_column(String(20), server_default="5m")
     updated_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
