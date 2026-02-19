@@ -57,6 +57,7 @@ async def settings_page(
                 "scaffolding": settings.scaffolding_model,
                 "ocr": settings.ocr_model,
                 "translation": settings.translation_model,
+                "vision": settings.vision_model,
             },
             "saved": saved == "1",
         },
@@ -69,6 +70,7 @@ async def save_settings(
     scaffolding_model: str = Form(""),
     ocr_model: str = Form(""),
     translation_model: str = Form(""),
+    vision_model: str = Form(""),
     keep_alive: str = Form("5m"),
     teacher: Teacher = Depends(get_current_teacher),
     db: AsyncSession = Depends(get_db),
@@ -82,6 +84,7 @@ async def save_settings(
         scaffolding_model=scaffolding_model if scaffolding_model else None,
         ocr_model=ocr_model if ocr_model else None,
         translation_model=translation_model if translation_model else None,
+        vision_model=vision_model if vision_model else None,
         keep_alive=keep_alive,
     )
 
