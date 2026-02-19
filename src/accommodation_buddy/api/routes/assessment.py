@@ -1,8 +1,9 @@
 import base64
 import json
 import logging
+import random
+from pathlib import Path
 
-import httpx
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy import select
@@ -152,24 +153,21 @@ async def start_image_assessment(
             '</div></div>'
         )
 
-    # Fetch random image from Lorem Picsum
-    try:
-        async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as http:
-            img_resp = await http.get("https://picsum.photos/800/600")
-            img_resp.raise_for_status()
-            image_bytes = img_resp.content
-            image_url = str(img_resp.url)
-    except Exception:
-        logger.exception("Failed to fetch image from picsum.photos")
+    # Pick a random image from the local assessment images folder
+    images_dir = Path(__file__).resolve().parents[2] / "static" / "img" / "assessment"
+    image_files = list(images_dir.glob("*.jpg"))
+    if not image_files:
         return HTMLResponse(
             '<div class="chat-message assistant">'
             '<div class="message-content" style="color: var(--danger);">'
-            'Failed to fetch an image. Please check your internet connection '
-            'and try again.'
+            'No assessment images found. Contact your administrator.'
             '</div></div>'
         )
 
+    chosen_image = random.choice(image_files)
+    image_bytes = chosen_image.read_bytes()
     image_b64 = base64.b64encode(image_bytes).decode("utf-8")
+    image_url = f"/static/img/assessment/{chosen_image.name}"
 
     system_prompt = IMAGE_ASSESSMENT_SYSTEM_PROMPT.format(
         language=language, max_turns=10
