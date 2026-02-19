@@ -152,6 +152,11 @@ docker compose logs app --tail 50 -f
 docker compose logs worker --tail 50 -f
 ```
 
+## Acknowledgements
+```
+Thanks to Spencer Foundation, Ashley Marquez, and Oscar Arenas
+```
+
 ## License
 
 MIT
