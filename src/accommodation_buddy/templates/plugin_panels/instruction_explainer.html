@@ -1,0 +1,30 @@
+{% include "plugin_panels/_panel_wrapper.html" %}
+
+{% if result %}
+<div class="accommodation-result instruction-explainer">
+    {% if result.l1_instructions %}
+    <div class="explainer-section">
+        <h4>Instructions ({{ result.target_language or "L1" }})</h4>
+        <div class="l1-text">{{ result.l1_instructions }}</div>
+    </div>
+    {% endif %}
+
+    {% if result.task_flow %}
+    <div class="explainer-section">
+        <h4>Task Flow</h4>
+        <div class="task-flow">{{ result.task_flow }}</div>
+    </div>
+    {% endif %}
+
+    {% if result.comprehension_checks %}
+    <div class="explainer-section">
+        <h4>Comprehension Checks</h4>
+        <ol class="check-list">
+            {% for check in result.comprehension_checks %}
+            <li>{{ check }}</li>
+            {% endfor %}
+        </ol>
+    </div>
+    {% endif %}
+</div>
+{% endif %}

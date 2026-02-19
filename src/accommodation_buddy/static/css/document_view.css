@@ -1,0 +1,174 @@
+/* Document View Layout */
+.doc-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: .75rem 1rem;
+    margin-bottom: 1rem;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.toolbar-left, .toolbar-center, .toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+}
+
+.doc-title { font-weight: 600; font-size: .95rem; }
+
+#student-picker { display: flex; align-items: center; gap: .5rem; }
+#student-picker label { font-size: .85rem; font-weight: 500; color: var(--text-muted); }
+#student-picker select { padding: .3rem .5rem; font-size: .85rem; border: 1px solid var(--border); border-radius: 4px; max-width: 280px; }
+
+/* Two-column layout */
+.doc-layout {
+    display: grid;
+    grid-template-columns: 1fr 420px;
+    gap: 1rem;
+    align-items: start;
+}
+
+/* Left: Document content */
+.doc-content {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.5rem;
+    box-shadow: var(--shadow);
+    max-height: calc(100vh - 160px);
+    overflow-y: auto;
+}
+
+.doc-text {
+    font-size: .95rem;
+    line-height: 1.7;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+/* Right: Plugin sidebar */
+.plugin-sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: .75rem;
+    max-height: calc(100vh - 160px);
+    overflow-y: auto;
+}
+
+.empty-sidebar {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 2rem;
+    text-align: center;
+    color: var(--text-muted);
+}
+
+/* Plugin panels */
+.plugin-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+}
+
+.panel-header {
+    display: flex;
+    align-items: center;
+    padding: .6rem .75rem;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    user-select: none;
+    gap: .5rem;
+}
+
+.panel-toggle { font-size: .9rem; color: var(--text-muted); width: 16px; text-align: center; }
+.panel-name { font-weight: 600; font-size: .85rem; flex: 1; }
+
+.panel-actions { display: flex; align-items: center; gap: .25rem; }
+
+.btn-run {
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: .2rem .4rem;
+    font-size: .7rem;
+    cursor: pointer;
+}
+.btn-run:hover { background: var(--primary-hover); }
+
+.panel-content { padding: .75rem; font-size: .85rem; }
+.panel-empty { color: var(--text-muted); text-align: center; padding: .5rem; }
+.panel-error { color: var(--danger); padding: .5rem; }
+.panel-body { font-size: .85rem; }
+
+/* Accommodation results */
+.accommodation-result { font-size: .85rem; }
+
+.accommodation-actions {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    margin-top: .75rem;
+    padding-top: .5rem;
+    border-top: 1px solid var(--border);
+}
+
+.inline-actions { display: flex; gap: .35rem; }
+
+/* Sentence Frames */
+.frame-item { margin-bottom: .75rem; padding-bottom: .5rem; border-bottom: 1px solid var(--border); }
+.frame-item:last-child { border-bottom: none; }
+.frame-question { font-weight: 500; margin-bottom: .25rem; }
+.frame-content { padding-left: .5rem; }
+.frame-row { margin-bottom: .15rem; }
+.frame-row .label { font-weight: 500; color: var(--text-muted); font-size: .8rem; }
+.l1-bridge { color: var(--info); }
+.rationale { color: var(--text-muted); font-style: italic; margin-top: .5rem; font-size: .8rem; }
+
+/* Vocab Cards */
+.vocab-card {
+    padding: .5rem;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    margin-bottom: .5rem;
+}
+.vocab-word { font-weight: 700; font-size: .9rem; margin-bottom: .25rem; }
+.vocab-details .label { font-weight: 500; color: var(--text-muted); }
+.vocab-row { margin-bottom: .15rem; }
+.vocab-freq { font-size: .75rem; color: var(--text-muted); margin-top: .25rem; }
+
+/* Instruction Explainer */
+.explainer-section { margin-bottom: .75rem; }
+.explainer-section h4 { font-size: .85rem; font-weight: 600; margin-bottom: .25rem; }
+.l1-text { background: #f0f9ff; padding: .5rem; border-radius: 4px; }
+.task-flow { background: var(--bg); padding: .5rem; border-radius: 4px; }
+.check-list { padding-left: 1.25rem; }
+.check-list li { margin-bottom: .25rem; }
+
+/* Cognates */
+.teaching-note { font-size: .8rem; color: var(--text-muted); }
+
+/* Strategy Panel */
+.strategy-section { margin-bottom: .75rem; }
+.strategy-section h4 { font-size: .85rem; font-weight: 600; margin-bottom: .25rem; }
+.group-card { padding: .35rem .5rem; background: var(--bg); border-radius: 4px; margin-bottom: .35rem; font-size: .85rem; }
+.group-activity { font-size: .8rem; color: var(--text-muted); margin-top: .15rem; }
+
+/* Coming Soon */
+.coming-soon { text-align: center; padding: 1rem; color: var(--text-muted); }
+.feature-status { font-size: .8rem; font-style: italic; }
+
+/* Responsive */
+@media (max-width: 900px) {
+    .doc-layout { grid-template-columns: 1fr; }
+    .plugin-sidebar { max-height: none; }
+    .doc-toolbar { flex-direction: column; align-items: stretch; }
+}

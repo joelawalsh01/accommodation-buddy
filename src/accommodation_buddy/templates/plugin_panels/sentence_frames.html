@@ -1,0 +1,23 @@
+{% include "plugin_panels/_panel_wrapper.html" %}
+
+{% if result %}
+<div class="accommodation-result sentence-frames">
+    {% if result.frames %}
+    {% for frame in result.frames %}
+    <div class="frame-item">
+        <div class="frame-question"><strong>Q:</strong> {{ frame.question }}</div>
+        <div class="frame-content">
+            <div class="frame-row"><span class="label">Frame:</span> {{ frame.frame }}</div>
+            <div class="frame-row"><span class="label">Starter:</span> {{ frame.starter }}</div>
+            {% if frame.l1_bridge %}
+            <div class="frame-row l1-bridge"><span class="label">L1 Bridge:</span> {{ frame.l1_bridge }}</div>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+    {% endif %}
+    {% if result.scaffolding_rationale %}
+    <div class="rationale"><em>{{ result.scaffolding_rationale }}</em></div>
+    {% endif %}
+</div>
+{% endif %}

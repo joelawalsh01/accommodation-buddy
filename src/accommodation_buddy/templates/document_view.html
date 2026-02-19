@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}{{ document.filename }} - Accommodation Buddy{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="/static/css/document_view.css">
+{% endblock %}
+
+{% block content %}
+<div class="doc-toolbar">
+    <div class="toolbar-left">
+        <a href="/documents/{{ class_id }}" class="btn btn-secondary btn-sm">&larr; Documents</a>
+        <span class="doc-title">{{ document.filename }}</span>
+        <span class="status-badge status-{{ document.ocr_status }}">{{ document.ocr_status }}</span>
+    </div>
+    <div class="toolbar-center">
+        <form id="student-picker" hx-get="/documents/{{ class_id }}/{{ document.id }}" hx-target="body" hx-push-url="true">
+            <label for="student_id">Student:</label>
+            <select name="student_id" id="student_id" onchange="this.form.requestSubmit()">
+                <option value="">All (class-wide)</option>
+                {% for student in students %}
+                <option value="{{ student.id }}" {% if selected_student_id == student.id %}selected{% endif %}>
+                    {{ student.pseudonym }}
+                    {% if student.heritage_language %}({{ student.heritage_language }}){% endif %}
+                    — ENG:{{ student.english_proficiency_level or '?' }}
+                </option>
+                {% endfor %}
+            </select>
+        </form>
+    </div>
+    <div class="toolbar-right">
+        <button class="btn btn-primary btn-sm"
+                hx-post="/documents/api/plugins/run-all"
+                hx-vals='{"document_id": "{{ document.id }}", "class_id": "{{ class_id }}", "student_id": "{{ selected_student_id or '' }}"}'
+                hx-target="#run-all-status"
+                hx-indicator="#run-all-spinner">
+            Run All
+        </button>
+        <span id="run-all-spinner" class="htmx-indicator">Running...</span>
+        <span id="run-all-status"></span>
+        <a href="/features/{{ class_id }}" class="btn btn-secondary btn-sm">Manage Features</a>
+    </div>
+</div>
+
+<div class="doc-layout" x-data="panelHost()">
+    <!-- Left: Document Content -->
+    <div class="doc-content">
+        <div class="doc-text">
+            {% if document.extracted_text %}
+            {{ document.extracted_text | replace('\n', '<br>') | safe }}
+            {% else %}
+            <div class="empty-state">
+                <p>Text extraction is {{ document.ocr_status }}.</p>
+                {% if document.ocr_status == 'pending' or document.ocr_status == 'processing' %}
+                <p>This page will refresh automatically when complete.</p>
+                <div hx-get="/documents/{{ class_id }}/{{ document.id }}" hx-trigger="every 5s" hx-select=".doc-text" hx-swap="outerHTML"></div>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Right: Plugin Sidebar -->
+    <div class="plugin-sidebar">
+        {% if panels %}
+            {% for panel in panels %}
+            <div class="plugin-panel" id="panel-{{ panel.plugin_id }}"
+                 x-data="{ collapsed: {{ 'true' if panel.collapsed else 'false' }} }">
+                <div class="panel-header" @click="collapsed = !collapsed">
+                    <span class="panel-toggle" x-text="collapsed ? '&#9656;' : '&#9662;'"></span>
+                    <span class="panel-name">{{ panel.name }}</span>
+                    <div class="panel-actions" @click.stop>
+                        <button class="btn btn-xs btn-run"
+                                hx-post="/documents/api/plugins/{{ panel.plugin_id }}/run"
+                                hx-vals='{"document_id": "{{ document.id }}", "class_id": "{{ class_id }}", "student_id": "{{ selected_student_id or '' }}"}'
+                                hx-target="#panel-content-{{ panel.plugin_id }}"
+                                hx-indicator="#spinner-{{ panel.plugin_id }}">
+                            &#9654;
+                        </button>
+                        <span id="spinner-{{ panel.plugin_id }}" class="htmx-indicator">...</span>
+                    </div>
+                </div>
+                <div class="panel-content" id="panel-content-{{ panel.plugin_id }}" x-show="!collapsed" x-transition>
+                    {{ panel.html | safe }}
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="empty-sidebar">
+                <p>No accommodation modules enabled.</p>
+                <a href="/features/{{ class_id }}" class="btn btn-secondary btn-sm">Enable Features</a>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/panel_host.js"></script>
+{% endblock %}

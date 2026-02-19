@@ -1,0 +1,75 @@
+services:
+  app:
+    build: .
+    command: >
+      uv run accommodation-buddy serve
+        --scaffolding-model ${SCAFFOLDING_MODEL:-llama3}
+        --ocr-model ${OCR_MODEL:-deepseek-r1}
+    ports:
+      - "${APP_PORT:-8000}:8000"
+    volumes:
+      - ./data/uploads:/app/data/uploads
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      ollama:
+        condition: service_started
+
+  worker:
+    build: .
+    command: >
+      uv run celery -A accommodation_buddy.tasks.celery_app worker
+        --loglevel=info --concurrency=2
+    volumes:
+      - ./data/uploads:/app/data/uploads
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      ollama:
+        condition: service_started
+
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ~/.ollama:/root/.ollama
+    # Uncomment below for GPU passthrough on Linux with NVIDIA:
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+    entrypoint: ["ollama", "serve"]
+
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: accommodation_buddy
+      POSTGRES_USER: ${DB_USER:-buddy}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-buddypass}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-buddy}"]
+      interval: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis_data:/data
+
+volumes:
+  pg_data:
+  redis_data:

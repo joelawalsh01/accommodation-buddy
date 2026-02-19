@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Dashboard - Accommodation Buddy{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Welcome, {{ teacher.name }}</h1>
+</div>
+
+<div class="dashboard-grid">
+    <div class="card">
+        <h2>Your Classes</h2>
+        {% if classes %}
+        <div class="class-list">
+            {% for class in classes %}
+            <a href="/classes/{{ class.id }}" class="class-card">
+                <div class="class-name">{{ class.name }}</div>
+                <div class="class-meta">
+                    {% if class.grade_level %}Grade {{ class.grade_level }} &middot; {% endif %}
+                    {{ class.students | length }} students
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="empty-state">No classes yet. Create your first class to get started.</p>
+        {% endif %}
+        <a href="/classes" class="btn btn-secondary">Manage Classes</a>
+    </div>
+
+    <div class="card">
+        <h2>Quick Actions</h2>
+        <div class="quick-actions">
+            <a href="/classes" class="action-btn">
+                <span class="action-icon">+</span>
+                <span>New Class</span>
+            </a>
+            {% if classes %}
+            <a href="/documents/{{ classes[0].id }}" class="action-btn">
+                <span class="action-icon">&uarr;</span>
+                <span>Upload Document</span>
+            </a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

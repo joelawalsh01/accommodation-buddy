@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}Assessment - {{ student.pseudonym }} - Accommodation Buddy{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Language Assessment — {{ student.pseudonym }}</h1>
+    <p class="subtitle">
+        {{ student.heritage_language or "Unknown L1" }} &middot;
+        English: Level {{ student.english_proficiency_level or "?" }} &middot;
+        L1: Level {{ student.l1_proficiency_level or "?" }}
+    </p>
+</div>
+
+<div class="assessment-layout">
+    <div class="card chat-container" x-data="assessmentChat()">
+        <div class="chat-header">
+            <h2>Assessment Chat</h2>
+            <div class="chat-controls">
+                <form hx-post="/assessment/{{ student.id }}/start"
+                      hx-target="#chat-messages"
+                      hx-swap="beforeend">
+                    <select name="language" class="select-sm">
+                        <option value="English">English</option>
+                        {% if student.heritage_language %}
+                        <option value="{{ student.heritage_language }}">{{ student.heritage_language }}</option>
+                        {% endif %}
+                    </select>
+                    <button type="submit" class="btn btn-primary btn-sm">Start Assessment</button>
+                </form>
+            </div>
+        </div>
+
+        <div id="chat-messages" class="chat-messages">
+            <!-- Chat messages appear here via HTMX -->
+        </div>
+
+        <form class="chat-input"
+              hx-post="/assessment/{{ student.id }}/message"
+              hx-target="#chat-messages"
+              hx-swap="beforeend"
+              hx-on::after-request="this.reset()">
+            <input type="hidden" name="assessment_id" id="assessment-id-field" value="">
+            <input type="text" name="message" placeholder="Type student's response..." required autocomplete="off">
+            <button type="submit" class="btn btn-primary">Send</button>
+        </form>
+    </div>
+
+    {% if assessments %}
+    <div class="card">
+        <h2>Previous Assessments</h2>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>English Score</th>
+                    <th>L1 Score</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for a in assessments %}
+                <tr>
+                    <td>{{ a.assessed_at.strftime('%Y-%m-%d %H:%M') if a.assessed_at else '' }}</td>
+                    <td>{{ a.english_score or "—" }}</td>
+                    <td>{{ a.l1_score or "—" }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Update the hidden assessment_id field when a new assessment starts
+document.body.addEventListener('htmx:afterSwap', function(evt) {
+    const input = document.getElementById('assessment-id-input');
+    if (input) {
+        document.getElementById('assessment-id-field').value = input.value;
+    }
+});
+
+function assessmentChat() {
+    return {};
+}
+</script>
+{% endblock %}

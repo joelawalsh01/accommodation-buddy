@@ -1,0 +1,26 @@
+{% include "plugin_panels/_panel_wrapper.html" %}
+
+{% if result %}
+<div class="accommodation-result cognates">
+    {% if result.cognate_pairs %}
+    <table class="mini-table">
+        <thead>
+            <tr>
+                <th>English</th>
+                <th>L1 Cognate</th>
+                <th>Note</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for pair in result.cognate_pairs %}
+            <tr>
+                <td><strong>{{ pair.english_term }}</strong></td>
+                <td>{{ pair.l1_cognate }}</td>
+                <td class="teaching-note">{{ pair.teaching_note or "" }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+</div>
+{% endif %}

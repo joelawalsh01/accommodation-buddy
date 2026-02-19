@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Accommodation Buddy{% endblock %}</title>
+    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <link rel="stylesheet" href="/static/css/style.css">
+    {% block head %}{% endblock %}
+</head>
+<body>
+    {% if teacher %}
+    <nav class="main-nav">
+        <div class="nav-left">
+            <a href="/dashboard" class="nav-brand">Accommodation Buddy</a>
+        </div>
+        <div class="nav-right">
+            <a href="/dashboard">Dashboard</a>
+            <a href="/classes">Classes</a>
+            <span class="nav-user">{{ teacher.name }}</span>
+            <a href="/logout" class="nav-logout">Logout</a>
+        </div>
+    </nav>
+    {% endif %}
+
+    <main class="container">
+        {% block content %}{% endblock %}
+    </main>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>

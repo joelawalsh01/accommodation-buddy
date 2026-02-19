@@ -1,0 +1,38 @@
+{% include "plugin_panels/_panel_wrapper.html" %}
+
+{% if result %}
+<div class="accommodation-result strategy-panel">
+    {% if result.grouping_strategy %}
+    <div class="strategy-section">
+        <h4>Grouping Strategy</h4>
+        <p>{{ result.grouping_strategy }}</p>
+    </div>
+    {% endif %}
+
+    {% if result.groups %}
+    <div class="strategy-section">
+        <h4>Suggested Groups</h4>
+        {% for group in result.groups %}
+        <div class="group-card">
+            <strong>Group {{ loop.index }}:</strong>
+            {{ group.members | join(", ") if group.members else group }}
+            {% if group.activity %}
+            <div class="group-activity">Activity: {{ group.activity }}</div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if result.activity_modifications %}
+    <div class="strategy-section">
+        <h4>Activity Modifications</h4>
+        <ul>
+            {% for mod in result.activity_modifications %}
+            <li>{{ mod }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+</div>
+{% endif %}

@@ -1,0 +1,18 @@
+{% include "plugin_panels/_panel_wrapper.html" %}
+
+{% if result %}
+<div class="accommodation-result translation-panel">
+    {% if result.error %}
+    <div class="panel-error">{{ result.error }}</div>
+    {% else %}
+    <div class="translation-meta">
+        <span class="badge">{{ result.target_language }}</span>
+        <span class="badge">Grade {{ result.grade_level }}</span>
+        {% if result.domain and result.domain != "General" %}
+        <span class="badge">{{ result.domain }}</span>
+        {% endif %}
+    </div>
+    <div class="translated-text">{{ result.translated_text | replace('\n', '<br>') | safe }}</div>
+    {% endif %}
+</div>
+{% endif %}

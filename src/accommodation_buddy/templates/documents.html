@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Documents - {{ class_obj.name }} - Accommodation Buddy{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Documents — {{ class_obj.name }}</h1>
+    <a href="/classes/{{ class_obj.id }}" class="btn btn-secondary">&larr; Back to Class</a>
+</div>
+
+<div class="card">
+    <h2>Upload Document</h2>
+    <form method="post" action="/documents/{{ class_obj.id }}/upload" enctype="multipart/form-data">
+        <div class="form-row">
+            <div class="form-group file-upload">
+                <label for="file">Choose file (PDF, DOCX, PPTX, or image)</label>
+                <input type="file" id="file" name="file" accept=".pdf,.docx,.doc,.pptx,.ppt,.png,.jpg,.jpeg,.gif,.bmp,.tiff,.webp" required>
+            </div>
+            <button type="submit" class="btn btn-primary">Upload & Extract</button>
+        </div>
+    </form>
+</div>
+
+{% if documents %}
+<div class="card">
+    <h2>Uploaded Documents</h2>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Filename</th>
+                <th>Type</th>
+                <th>Status</th>
+                <th>Uploaded</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for doc in documents %}
+            <tr id="doc-row-{{ doc.id }}"
+                {% if doc.ocr_status not in ('complete', 'failed') %}
+                hx-get="/documents/{{ class_obj.id }}/status/{{ doc.id }}"
+                hx-trigger="every 2s"
+                hx-swap="outerHTML"
+                {% endif %}>
+                <td>{{ doc.filename }}</td>
+                <td><span class="badge">{{ doc.file_type }}</span></td>
+                <td class="status-cell">
+                    <span class="status-badge status-{{ doc.ocr_status }}">{{ doc.ocr_status }}</span>
+                    {% if doc.status_detail %}
+                    <div class="status-detail">{{ doc.status_detail }}</div>
+                    {% endif %}
+                    {% if doc.ocr_status == 'processing' and doc.ocr_progress is not none %}
+                    <div class="progress-bar-container">
+                        <div class="progress-bar" style="width: {{ doc.ocr_progress }}%"></div>
+                        <span class="progress-text">{{ doc.ocr_progress }}%</span>
+                    </div>
+                    {% endif %}
+                </td>
+                <td>{{ doc.created_at.strftime('%Y-%m-%d %H:%M') if doc.created_at else '' }}</td>
+                <td>
+                    {% if doc.ocr_status == 'complete' %}
+                    <a href="/documents/{{ class_obj.id }}/{{ doc.id }}" class="btn btn-sm btn-primary">View & Accommodate</a>
+                    {% elif doc.ocr_status == 'failed' %}
+                    <span class="text-error">Failed</span>
+                    {% else %}
+                    <span class="text-muted processing-indicator">
+                        <span class="spinner"></span> Processing
+                    </span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="empty-state-box">
+    <p>No documents uploaded yet. Upload a PDF, DOCX, PPTX, or image to begin.</p>
+</div>
+{% endif %}
+{% endblock %}

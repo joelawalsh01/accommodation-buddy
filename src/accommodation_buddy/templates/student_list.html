@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}Students - {{ class_obj.name }} - Accommodation Buddy{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Students — {{ class_obj.name }}</h1>
+    <a href="/classes/{{ class_obj.id }}" class="btn btn-secondary">&larr; Back to Class</a>
+</div>
+
+<div class="card">
+    <h2>Add Student</h2>
+    <form method="post" action="/students/{{ class_obj.id }}">
+        <div class="form-row">
+            <div class="form-group">
+                <label for="pseudonym">Name / Pseudonym</label>
+                <input type="text" id="pseudonym" name="pseudonym" required>
+            </div>
+            <div class="form-group">
+                <label for="heritage_language">Heritage Language</label>
+                <input type="text" id="heritage_language" name="heritage_language" placeholder="e.g., Spanish">
+            </div>
+            <div class="form-group">
+                <label for="english_proficiency_level">English Level (1-6)</label>
+                <select id="english_proficiency_level" name="english_proficiency_level">
+                    <option value="1">1 - Entering</option>
+                    <option value="2">2 - Emerging</option>
+                    <option value="3" selected>3 - Developing</option>
+                    <option value="4">4 - Expanding</option>
+                    <option value="5">5 - Bridging</option>
+                    <option value="6">6 - Reaching</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="l1_proficiency_level">L1 Level (1-6)</label>
+                <select id="l1_proficiency_level" name="l1_proficiency_level">
+                    <option value="1">1 - Entering</option>
+                    <option value="2">2 - Emerging</option>
+                    <option value="3">3 - Developing</option>
+                    <option value="4" selected>4 - Expanding</option>
+                    <option value="5">5 - Bridging</option>
+                    <option value="6">6 - Reaching</option>
+                </select>
+            </div>
+        </div>
+        <button type="submit" class="btn btn-primary">Add Student</button>
+    </form>
+</div>
+
+{% if students %}
+<div class="card">
+    <h2>Roster ({{ students | length }})</h2>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Heritage Language</th>
+                <th>English Level</th>
+                <th>L1 Level</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for student in students %}
+            <tr>
+                <td>{{ student.pseudonym }}</td>
+                <td>{{ student.heritage_language or "—" }}</td>
+                <td>
+                    <span class="proficiency-badge level-{{ student.english_proficiency_level or 1 }}">
+                        {{ student.english_proficiency_level or "?" }}
+                    </span>
+                </td>
+                <td>
+                    <span class="proficiency-badge level-{{ student.l1_proficiency_level or 1 }}">
+                        {{ student.l1_proficiency_level or "?" }}
+                    </span>
+                </td>
+                <td>
+                    <a href="/assessment/{{ student.id }}" class="btn btn-sm">Assess</a>
+                    <form method="post" action="/students/{{ class_obj.id }}/{{ student.id }}/delete" style="display:inline">
+                        <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Remove this student?')">Remove</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="empty-state-box">
+    <p>No students added yet. Use the form above to add students.</p>
+</div>
+{% endif %}
+{% endblock %}

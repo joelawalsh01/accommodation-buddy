@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Feature Manager - Accommodation Buddy{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Feature Manager — {{ class_obj.name }}</h1>
+    <a href="/classes/{{ class_obj.id }}" class="btn btn-secondary">&larr; Back to Class</a>
+</div>
+
+<p class="page-description">Enable or disable accommodation modules for this class. Each module generates different types of scaffolding for multilingual learners.</p>
+
+{% set category_labels = {
+    'document_accommodation': 'Document Accommodations',
+    'student_tool': 'Student Tools',
+    'teacher_tool': 'Teacher Tools',
+    'live_mode': 'Live Mode (Experimental)'
+} %}
+
+{% for category, toggles in categories.items() %}
+<div class="card feature-category">
+    <h2>{{ category_labels.get(category, category) }}</h2>
+    <div class="feature-grid">
+        {% for toggle in toggles %}
+        <div class="feature-card {% if toggle.enabled %}enabled{% endif %} {% if toggle.always_on %}always-on{% endif %}">
+            <div class="feature-header">
+                <div class="feature-info">
+                    <h3>{{ toggle.name }}</h3>
+                    <p class="feature-description">{{ toggle.description }}</p>
+                </div>
+                <div class="feature-toggle" x-data="{ enabled: {{ 'true' if toggle.enabled else 'false' }} }">
+                    {% if toggle.always_on %}
+                    <span class="badge badge-info">Always On</span>
+                    {% else %}
+                    <label class="toggle-switch">
+                        <input type="checkbox"
+                               x-model="enabled"
+                               hx-post="/features/{{ class_obj.id }}/toggle"
+                               hx-vals='{"plugin_id": "{{ toggle.plugin_id }}"}'
+                               hx-include="[name=enabled]"
+                               hx-target="#status-{{ toggle.plugin_id }}"
+                               name="enabled"
+                               :value="enabled"
+                               {% if toggle.enabled %}checked{% endif %}>
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <span id="status-{{ toggle.plugin_id }}" class="toggle-status">
+                        {{ "enabled" if toggle.enabled else "disabled" }}
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endfor %}
+{% endblock %}

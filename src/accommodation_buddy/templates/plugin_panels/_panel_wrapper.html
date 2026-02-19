@@ -1,0 +1,35 @@
+<div class="panel-body">
+    {% if result %}
+        {% block panel_content %}{% endblock %}
+
+        {% if accommodation %}
+        <div class="accommodation-actions" hx-target="this">
+            <span class="badge badge-{{ accommodation.status }}">{{ accommodation.status }}</span>
+            {% if accommodation.status == 'generated' %}
+            <form class="inline-actions">
+                <button class="btn btn-xs btn-success"
+                        hx-post="/documents/api/accommodations/{{ accommodation.id }}/status"
+                        hx-vals='{"status": "accepted"}'>
+                    Accept
+                </button>
+                <button class="btn btn-xs btn-warning"
+                        hx-post="/documents/api/accommodations/{{ accommodation.id }}/status"
+                        hx-vals='{"status": "revised"}'
+                        onclick="event.preventDefault(); let t=prompt('Revise:'); if(t) htmx.ajax('POST', '/documents/api/accommodations/{{ accommodation.id }}/status', {values:{status:'revised',revised_text:t}, target:this.closest('.accommodation-actions')})">
+                    Revise
+                </button>
+                <button class="btn btn-xs btn-danger"
+                        hx-post="/documents/api/accommodations/{{ accommodation.id }}/status"
+                        hx-vals='{"status": "rejected"}'>
+                    Skip
+                </button>
+            </form>
+            {% endif %}
+        </div>
+        {% endif %}
+    {% else %}
+    <div class="panel-empty">
+        <p>Click &#9654; to generate accommodations.</p>
+    </div>
+    {% endif %}
+</div>

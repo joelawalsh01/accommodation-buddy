@@ -1,0 +1,23 @@
+{% include "plugin_panels/_panel_wrapper.html" %}
+
+{% if result %}
+<div class="accommodation-result vocab-cards">
+    {% if result.vocab_cards %}
+    {% for card in result.vocab_cards %}
+    <div class="vocab-card">
+        <div class="vocab-word">{{ card.word }}</div>
+        <div class="vocab-details">
+            <div class="vocab-row"><span class="label">Definition:</span> {{ card.definition }}</div>
+            {% if card.l1_analogue %}
+            <div class="vocab-row"><span class="label">L1:</span> {{ card.l1_analogue }}</div>
+            {% endif %}
+            {% if card.teaching_strategy %}
+            <div class="vocab-row"><span class="label">Strategy:</span> {{ card.teaching_strategy }}</div>
+            {% endif %}
+            <div class="vocab-freq">Frequency: {{ "%.1f" | format(card.frequency_score) if card.frequency_score else "N/A" }}</div>
+        </div>
+    </div>
+    {% endfor %}
+    {% endif %}
+</div>
+{% endif %}
