@@ -60,6 +60,7 @@ def create_app() -> FastAPI:
 
     # Include routers
     from accommodation_buddy.api.routes import auth, classes, documents, features, students, assessment
+    from accommodation_buddy.api.routes import settings as settings_routes
 
     app.include_router(auth.router)
     app.include_router(classes.router)
@@ -67,6 +68,7 @@ def create_app() -> FastAPI:
     app.include_router(documents.router)
     app.include_router(features.router)
     app.include_router(assessment.router)
+    app.include_router(settings_routes.router)
 
     @app.get("/")
     async def root():

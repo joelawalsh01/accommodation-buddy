@@ -120,10 +120,16 @@ class FrontloadedVocabPlugin(BasePlugin):
         # Stage 2: LLM enrichment
         client = OllamaClient()
 
+        ms = options.get("_model_settings")
+        model = ms.scaffolding_model if ms else None
+        keep_alive = ms.keep_alive if ms else None
+
         try:
             raw_response = await client.generate(
                 prompt=prompt,
                 system=VOCAB_SYSTEM_PROMPT,
+                model=model,
+                keep_alive=keep_alive,
             )
         except Exception:
             logger.exception("LLM call failed for frontloaded_vocab plugin")

@@ -25,7 +25,7 @@ async def _update_doc_status(db, doc, status, detail, progress=None):
 
 
 @celery_app.task(bind=True, name="process_document_ocr")
-def process_document_ocr(self, document_id: int):
+def process_document_ocr(self, document_id: int, teacher_id: int | None = None):
     async def _run():
         from sqlalchemy.ext.asyncio import create_async_engine
         from sqlalchemy.ext.asyncio import async_sessionmaker
@@ -37,6 +37,7 @@ def process_document_ocr(self, document_id: int):
             extract_pdf_pages_as_images,
             extract_pptx_text,
         )
+        from accommodation_buddy.services.model_settings import get_teacher_model_settings
         from accommodation_buddy.services.ollama_client import OllamaClient
 
         engine = create_async_engine(settings.database_url)
@@ -46,6 +47,12 @@ def process_document_ocr(self, document_id: int):
             doc = await db.get(Document, document_id)
             if doc is None:
                 return {"error": "Document not found"}
+
+            # Resolve model settings
+            tid = teacher_id or doc.teacher_id
+            ms = await get_teacher_model_settings(tid, db)
+            ocr_model = ms.ocr_model
+            keep_alive = ms.keep_alive
 
             file_path = doc.file_path
             file_type = doc.file_type
@@ -86,7 +93,7 @@ def process_document_ocr(self, document_id: int):
                 total_pages = len(page_images)
                 await _update_doc_status(
                     db, doc, "processing",
-                    f"Loading OCR model ({settings.ocr_model})...",
+                    f"Loading OCR model ({ocr_model})...",
                     15,
                 )
 
@@ -108,9 +115,10 @@ def process_document_ocr(self, document_id: int):
                     try:
                         page_text = await client.generate(
                             prompt=OCR_USER_PROMPT,
-                            model=settings.ocr_model,
+                            model=ocr_model,
                             images=[b64],
                             system=OCR_SYSTEM_PROMPT,
+                            keep_alive=keep_alive,
                         )
                         all_text.append(f"## Page {page_num}\n\n{page_text}")
                     except Exception:
@@ -145,6 +153,7 @@ def run_plugin(
     document_id: int,
     student_id: int | None = None,
     options: dict | None = None,
+    teacher_id: int | None = None,
 ):
     from accommodation_buddy.core.registry import PluginRegistry
 
@@ -164,6 +173,7 @@ def run_plugin(
             Student,
             Class,
         )
+        from accommodation_buddy.services.model_settings import get_teacher_model_settings
 
         engine = create_async_engine(settings.database_url)
         session_factory = async_sessionmaker(engine, expire_on_commit=False)
@@ -172,6 +182,10 @@ def run_plugin(
             doc = await db.get(Document, document_id)
             if doc is None:
                 return {"error": "Document not found"}
+
+            # Resolve model settings
+            tid = teacher_id or doc.teacher_id
+            ms = await get_teacher_model_settings(tid, db)
 
             student_profile = None
             if student_id:
@@ -193,11 +207,14 @@ def run_plugin(
                 grade_level=class_obj.grade_level,
             ) if class_obj else None
 
+            merged_options = dict(options or {})
+            merged_options["_model_settings"] = ms
+
             result = await plugin.generate(
                 document_text=doc.extracted_text or "",
                 student_profile=student_profile,
                 class_profile=class_profile,
-                options=options or {},
+                options=merged_options,
             )
 
             accommodation = Accommodation(

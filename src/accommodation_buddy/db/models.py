@@ -31,6 +31,9 @@ class Teacher(Base):
 
     classes: Mapped[list["Class"]] = relationship(back_populates="teacher")
     documents: Mapped[list["Document"]] = relationship(back_populates="teacher")
+    model_settings: Mapped["TeacherModelSettings | None"] = relationship(
+        back_populates="teacher", uselist=False
+    )
 
 
 class Class(Base):
@@ -209,3 +212,21 @@ class PluginState(Base):
     )
 
     document: Mapped["Document"] = relationship(back_populates="plugin_states")
+
+
+class TeacherModelSettings(Base):
+    __tablename__ = "teacher_model_settings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    teacher_id: Mapped[int] = mapped_column(
+        ForeignKey("teachers.id"), unique=True, nullable=False
+    )
+    scaffolding_model: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    ocr_model: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    translation_model: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    keep_alive: Mapped[str] = mapped_column(String(20), server_default="5m")
+    updated_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    teacher: Mapped["Teacher"] = relationship(back_populates="model_settings")

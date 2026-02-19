@@ -49,7 +49,7 @@ class TeacherStrategyPlugin(BasePlugin):
             l1 = student.l1_proficiency_level or "unknown"
             lines.append(
                 f"- {student.pseudonym}: Heritage language={lang}, "
-                f"English WIDA level={eng}, L1 proficiency={l1}"
+                f"English ELPAC level={eng}, L1 proficiency={l1}"
             )
         return "\n".join(lines)
 
@@ -80,10 +80,16 @@ class TeacherStrategyPlugin(BasePlugin):
 
         client = OllamaClient()
 
+        ms = options.get("_model_settings")
+        model = ms.scaffolding_model if ms else None
+        keep_alive = ms.keep_alive if ms else None
+
         try:
             raw_response = await client.generate(
                 prompt=prompt,
                 system=TEACHER_STRATEGY_SYSTEM_PROMPT,
+                model=model,
+                keep_alive=keep_alive,
             )
         except Exception:
             logger.exception("LLM call failed for teacher_strategy plugin")

@@ -17,13 +17,11 @@ from accommodation_buddy.services.ollama_client import OllamaClient
 
 logger = logging.getLogger(__name__)
 
-WIDA_LEVEL_DESCRIPTORS = {
-    1: "Entering – single words, memorised phrases, heavily supported",
-    2: "Emerging – phrases and short sentences, frequent errors",
-    3: "Developing – simple and expanded sentences, approaching grade-level with support",
-    4: "Expanding – a variety of sentence lengths, approaching grade-level",
-    5: "Bridging – near grade-level, occasional errors in complex constructions",
-    6: "Reaching – grade-level proficiency across all domains",
+ELPAC_LEVEL_DESCRIPTORS = {
+    1: "Beginning/Minimally Developed – isolated words or phrases, limited coherence, severe grammar limitations",
+    2: "Somewhat Developed – partial account, somewhat coherent, frequent errors impede meaning",
+    3: "Moderately Developed – generally complete, mostly coherent, can write expanded sentences",
+    4: "Well Developed – full and complete, readily coherent, varied grammar with minor errors",
 }
 
 
@@ -34,7 +32,7 @@ class SentenceFramesPlugin(BasePlugin):
             name="Sentence Frames Generator",
             description=(
                 "Generates sentence frames and starters aligned to a student's "
-                "WIDA proficiency level, helping multilingual learners respond to "
+                "ELPAC proficiency level, helping multilingual learners respond to "
                 "grade-level questions with appropriate linguistic scaffolding."
             ),
             category=PluginCategory.DOCUMENT_ACCOMMODATION,
@@ -62,7 +60,7 @@ class SentenceFramesPlugin(BasePlugin):
             if student_profile.heritage_language:
                 heritage_language = student_profile.heritage_language
 
-        level_descriptor = WIDA_LEVEL_DESCRIPTORS.get(proficiency_level, WIDA_LEVEL_DESCRIPTORS[3])
+        level_descriptor = ELPAC_LEVEL_DESCRIPTORS.get(proficiency_level, ELPAC_LEVEL_DESCRIPTORS[3])
 
         prompt = SENTENCE_FRAMES_PROMPT_TEMPLATE.format(
             proficiency_level=proficiency_level,
@@ -73,10 +71,16 @@ class SentenceFramesPlugin(BasePlugin):
 
         client = OllamaClient()
 
+        ms = options.get("_model_settings")
+        model = ms.scaffolding_model if ms else None
+        keep_alive = ms.keep_alive if ms else None
+
         try:
             raw_response = await client.generate(
                 prompt=prompt,
                 system=SENTENCE_FRAMES_SYSTEM_PROMPT,
+                model=model,
+                keep_alive=keep_alive,
             )
         except Exception:
             logger.exception("LLM call failed for sentence_frames plugin")

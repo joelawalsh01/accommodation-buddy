@@ -77,6 +77,10 @@ class NewLanguageDialoguePlugin(BasePlugin):
 
         client = OllamaClient()
 
+        ms = options.get("_model_settings")
+        model = ms.scaffolding_model if ms else None
+        keep_alive = ms.keep_alive if ms else None
+
         messages = [
             {"role": "system", "content": NEW_LANGUAGE_DIALOGUE_SYSTEM_PROMPT},
             {"role": "user", "content": start_prompt},
@@ -85,7 +89,9 @@ class NewLanguageDialoguePlugin(BasePlugin):
         # If no student messages provided, just generate the opening and return
         if not student_messages:
             try:
-                opening = await client.chat(messages=messages)
+                opening = await client.chat(
+                    messages=messages, model=model, keep_alive=keep_alive,
+                )
             except Exception:
                 logger.exception("LLM call failed for new_language_dialogue opening")
                 return AccommodationResult(
@@ -113,7 +119,9 @@ class NewLanguageDialoguePlugin(BasePlugin):
         transcript_parts: list[dict[str, str]] = []
 
         try:
-            opening = await client.chat(messages=messages)
+            opening = await client.chat(
+                messages=messages, model=model, keep_alive=keep_alive,
+            )
         except Exception:
             logger.exception("LLM call failed for new_language_dialogue opening")
             return AccommodationResult(
@@ -130,7 +138,9 @@ class NewLanguageDialoguePlugin(BasePlugin):
             transcript_parts.append({"role": "student", "content": student_msg})
 
             try:
-                reply = await client.chat(messages=messages)
+                reply = await client.chat(
+                    messages=messages, model=model, keep_alive=keep_alive,
+                )
             except Exception:
                 logger.exception("LLM call failed during dialogue turn")
                 break
@@ -150,7 +160,9 @@ class NewLanguageDialoguePlugin(BasePlugin):
         )
 
         try:
-            raw_feedback = await client.generate(prompt=feedback_prompt)
+            raw_feedback = await client.generate(
+                prompt=feedback_prompt, model=model, keep_alive=keep_alive,
+            )
         except Exception:
             logger.exception("LLM call failed for dialogue feedback generation")
             return AccommodationResult(

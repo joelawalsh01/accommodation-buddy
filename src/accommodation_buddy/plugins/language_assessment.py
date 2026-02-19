@@ -10,7 +10,7 @@ from accommodation_buddy.core.base_plugin import (
     PluginManifest,
     StudentProfile,
 )
-from accommodation_buddy.core.prompts import ASSESSMENT_START_PROMPT, WIDA_ASSESSMENT_SYSTEM_PROMPT
+from accommodation_buddy.core.prompts import ASSESSMENT_START_PROMPT, ELPAC_ASSESSMENT_SYSTEM_PROMPT
 from accommodation_buddy.services.ollama_client import OllamaClient
 
 logger = logging.getLogger(__name__)
@@ -27,8 +27,8 @@ class LanguageAssessmentPlugin(BasePlugin):
             name="Language Assessment Dialogue",
             description=(
                 "Conducts an informal, multi-turn conversational assessment to "
-                "estimate a student's WIDA English proficiency level (1-6) through "
-                "natural dialogue progressing from social to academic language."
+                "estimate a student's ELPAC English proficiency level (1-4) through "
+                "natural dialogue evaluating reading and writing proficiency."
             ),
             category=PluginCategory.STUDENT_TOOL,
             icon="mic",
@@ -56,7 +56,7 @@ class LanguageAssessmentPlugin(BasePlugin):
             if student_profile.heritage_language:
                 heritage_language = student_profile.heritage_language
             if student_profile.english_proficiency_level:
-                current_level = f"WIDA {student_profile.english_proficiency_level}"
+                current_level = f"ELPAC {student_profile.english_proficiency_level}"
 
         start_prompt = ASSESSMENT_START_PROMPT.format(
             pseudonym=pseudonym,
@@ -66,13 +66,21 @@ class LanguageAssessmentPlugin(BasePlugin):
 
         client = OllamaClient()
 
+        ms = options.get("_model_settings")
+        model = ms.scaffolding_model if ms else None
+        keep_alive = ms.keep_alive if ms else None
+
+        system_prompt = ELPAC_ASSESSMENT_SYSTEM_PROMPT.format(max_turns=10)
+
         messages = [
-            {"role": "system", "content": WIDA_ASSESSMENT_SYSTEM_PROMPT},
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": start_prompt},
         ]
 
         try:
-            opening_message = await client.chat(messages=messages)
+            opening_message = await client.chat(
+                messages=messages, model=model, keep_alive=keep_alive,
+            )
         except Exception:
             logger.exception("LLM call failed for language_assessment plugin")
             return AccommodationResult(
@@ -91,6 +99,8 @@ class LanguageAssessmentPlugin(BasePlugin):
             "turn_count": 1,
             "assessment_complete": False,
             "estimated_level": None,
+            "model": model,
+            "keep_alive": keep_alive,
         }
 
         return AccommodationResult(
@@ -146,7 +156,11 @@ class LanguageAssessmentPlugin(BasePlugin):
             client = OllamaClient()
 
             try:
-                assistant_reply = await client.chat(messages=session["messages"])
+                assistant_reply = await client.chat(
+                    messages=session["messages"],
+                    model=session.get("model"),
+                    keep_alive=session.get("keep_alive"),
+                )
             except Exception:
                 logger.exception("LLM call failed during assessment chat")
                 return {
@@ -168,7 +182,7 @@ class LanguageAssessmentPlugin(BasePlugin):
                     if parsed.get("assessment_complete"):
                         assessment_data = parsed
                         session["assessment_complete"] = True
-                        session["estimated_level"] = parsed.get("estimated_wida_level")
+                        session["estimated_level"] = parsed.get("estimated_elpac_level")
             except (json.JSONDecodeError, ValueError):
                 pass  # Not yet complete, continue conversation
 

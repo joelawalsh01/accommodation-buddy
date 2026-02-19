@@ -16,6 +16,7 @@ from accommodation_buddy.core.registry import PluginRegistry
 from accommodation_buddy.db.models import Accommodation, Class, Document, Student, Teacher
 from accommodation_buddy.db.session import get_db
 from accommodation_buddy.services.document_parser import detect_file_type
+from accommodation_buddy.services.model_settings import get_teacher_model_settings
 from accommodation_buddy.tasks.plugin_tasks import process_document_ocr, run_plugin
 
 router = APIRouter(prefix="/documents", tags=["documents"])
@@ -99,7 +100,7 @@ async def upload_document(
     await db.refresh(doc)
 
     # Dispatch OCR task
-    process_document_ocr.delay(doc.id)
+    process_document_ocr.delay(doc.id, teacher.id)
 
     return RedirectResponse(f"/documents/{class_id}", status_code=303)
 
@@ -263,12 +264,14 @@ async def run_plugin_endpoint(
         id=class_obj.id, name=class_obj.name, grade_level=class_obj.grade_level
     ) if class_obj else None
 
+    model_settings = await get_teacher_model_settings(teacher.id, db)
+
     try:
         result = await plugin.generate(
             document_text=doc.extracted_text or "",
             student_profile=student_profile,
             class_profile=class_profile,
-            options={},
+            options={"_model_settings": model_settings},
         )
 
         # Save accommodation
@@ -325,7 +328,7 @@ async def run_all_plugins(
     for manifest in enabled:
         if manifest.always_on or not manifest.requires_document:
             continue
-        task = run_plugin.delay(manifest.id, document_id, student_id)
+        task = run_plugin.delay(manifest.id, document_id, student_id, None, teacher.id)
         task_ids.append({"plugin_id": manifest.id, "task_id": task.id})
 
     return {"status": "dispatched", "tasks": task_ids}

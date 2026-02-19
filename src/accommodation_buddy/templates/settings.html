@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block title %}Settings - Accommodation Buddy{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Model Settings</h1>
+</div>
+<p class="page-description">Choose which Ollama models to use for each role. Leave a field on "System default" to use the value from the server configuration.</p>
+
+{% if saved %}
+<div class="alert" style="background: #d1fae5; color: #065f46; border: 1px solid #a7f3d0;">
+    Settings saved successfully.
+</div>
+{% endif %}
+
+{% if not ollama_online %}
+<div class="alert alert-error">
+    Ollama is currently offline. Model lists are unavailable, but your saved preferences will still be used when Ollama comes back online.
+</div>
+{% endif %}
+
+<form action="/settings/save" method="post">
+    <div class="card">
+        <h2>Model Assignments</h2>
+
+        <div class="form-group">
+            <label for="scaffolding_model">Scaffolding Model</label>
+            <p style="font-size: .8rem; color: var(--text-muted); margin-bottom: .35rem;">
+                Used by most plugins: Sentence Frames, Vocab, Instruction Explainer, Cognates, Teacher Strategy, Language Assessment, Dialogue.
+            </p>
+            <select name="scaffolding_model" id="scaffolding_model">
+                <option value="">System default ({{ system_defaults.scaffolding }})</option>
+                {% for m in available_models %}
+                <option value="{{ m.name }}" {% if resolved.scaffolding_model == m.name and resolved.scaffolding_model != system_defaults.scaffolding %}selected{% endif %}>
+                    {{ m.name }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="ocr_model">OCR Model</label>
+            <p style="font-size: .8rem; color: var(--text-muted); margin-bottom: .35rem;">
+                Used for extracting text from PDF and image documents.
+            </p>
+            <select name="ocr_model" id="ocr_model">
+                <option value="">System default ({{ system_defaults.ocr }})</option>
+                {% for m in available_models %}
+                <option value="{{ m.name }}" {% if resolved.ocr_model == m.name and resolved.ocr_model != system_defaults.ocr %}selected{% endif %}>
+                    {{ m.name }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="translation_model">Translation Model</label>
+            <p style="font-size: .8rem; color: var(--text-muted); margin-bottom: .35rem;">
+                Used by the Spanish Translation plugin.
+            </p>
+            <select name="translation_model" id="translation_model">
+                <option value="">System default ({{ system_defaults.translation }})</option>
+                {% for m in available_models %}
+                <option value="{{ m.name }}" {% if resolved.translation_model == m.name and resolved.translation_model != system_defaults.translation %}selected{% endif %}>
+                    {{ m.name }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>Memory Management</h2>
+        <div class="form-group">
+            <label for="keep_alive">Keep models in memory</label>
+            <p style="font-size: .8rem; color: var(--text-muted); margin-bottom: .35rem;">
+                Controls how long Ollama keeps models loaded in GPU/RAM after each request.
+            </p>
+            <select name="keep_alive" id="keep_alive">
+                <option value="0" {% if resolved.keep_alive == "0" %}selected{% endif %}>Unload immediately after use</option>
+                <option value="5m" {% if resolved.keep_alive == "5m" %}selected{% endif %}>Keep for 5 minutes (default)</option>
+                <option value="30m" {% if resolved.keep_alive == "30m" %}selected{% endif %}>Keep for 30 minutes</option>
+                <option value="-1" {% if resolved.keep_alive == "-1" %}selected{% endif %}>Keep indefinitely</option>
+            </select>
+        </div>
+    </div>
+
+    <button type="submit" class="btn btn-primary">Save Settings</button>
+</form>
+
+{% if ollama_online %}
+<div class="card" style="margin-top: 1.5rem;">
+    <h2>Models in Memory</h2>
+    <div id="running-models"
+         hx-get="/settings/running-models"
+         hx-trigger="load, every 10s"
+         hx-swap="innerHTML">
+        <p class="text-muted">Loading...</p>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

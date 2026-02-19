@@ -49,6 +49,10 @@ class OCRPlugin(BasePlugin):
 
         from accommodation_buddy.config import settings
 
+        ms = options.get("_model_settings")
+        ocr_model = ms.ocr_model if ms else settings.ocr_model
+        keep_alive = ms.keep_alive if ms else None
+
         if file_type == "docx":
             text = extract_docx_text(file_path)
             return AccommodationResult(
@@ -82,9 +86,10 @@ class OCRPlugin(BasePlugin):
             try:
                 page_text = await client.generate(
                     prompt=OCR_USER_PROMPT,
-                    model=settings.ocr_model,
+                    model=ocr_model,
                     images=[b64],
                     system=OCR_SYSTEM_PROMPT,
+                    keep_alive=keep_alive,
                 )
                 all_text.append(f"## Page {i + 1}\n\n{page_text}")
             except Exception:

@@ -138,13 +138,18 @@ class TranslationPlugin(BasePlugin):
 
         from accommodation_buddy.config import settings
 
+        ms = options.get("_model_settings")
+        trans_model = ms.translation_model if ms else settings.translation_model
+        keep_alive = ms.keep_alive if ms else None
+
         try:
             translated_text = await client.chat(
                 messages=[
                     {"role": "system", "content": full_system},
                     {"role": "user", "content": user_prompt},
                 ],
-                model=settings.translation_model,
+                model=trans_model,
+                keep_alive=keep_alive,
             )
 
             return AccommodationResult(

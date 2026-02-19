@@ -12,6 +12,7 @@ from accommodation_buddy.core.prompts import (
 )
 from accommodation_buddy.db.models import LanguageAssessment, Student, Teacher
 from accommodation_buddy.db.session import get_db
+from accommodation_buddy.services.model_settings import get_teacher_model_settings
 from accommodation_buddy.services.ollama_client import OllamaClient
 
 router = APIRouter(prefix="/assessment", tags=["assessment"])
@@ -69,13 +70,17 @@ async def start_assessment(
         language=language, max_turns=10
     )
 
+    ms = await get_teacher_model_settings(teacher.id, db)
+
     client = OllamaClient()
     messages = [
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": ASSESSMENT_ROUTE_START_TEMPLATE.format(pseudonym=student.pseudonym)},
     ]
 
-    response = await client.chat(messages=messages)
+    response = await client.chat(
+        messages=messages, model=ms.scaffolding_model, keep_alive=ms.keep_alive,
+    )
 
     assessment = LanguageAssessment(
         student_id=student_id,
@@ -116,8 +121,12 @@ async def send_message(
     messages = log.get("messages", [])
     messages.append({"role": "user", "content": message})
 
+    ms = await get_teacher_model_settings(teacher.id, db)
+
     client = OllamaClient()
-    response = await client.chat(messages=messages)
+    response = await client.chat(
+        messages=messages, model=ms.scaffolding_model, keep_alive=ms.keep_alive,
+    )
     messages.append({"role": "assistant", "content": response})
 
     assessment.conversation_log = {**log, "messages": messages}
@@ -128,13 +137,16 @@ async def send_message(
             json_start = response.index("{")
             json_end = response.rindex("}") + 1
             result = json.loads(response[json_start:json_end])
-            assessment.english_score = result.get("proficiency_level")
+            level = result.get("proficiency_level")
+            if isinstance(level, int):
+                level = max(1, min(4, level))  # ELPAC uses 1-4 scale
+            assessment.english_score = level
 
             student = await db.get(Student, student_id)
             if student and log.get("language") == "English":
-                student.english_proficiency_level = result["proficiency_level"]
+                student.english_proficiency_level = level
             elif student:
-                student.l1_proficiency_level = result["proficiency_level"]
+                student.l1_proficiency_level = level
     except (json.JSONDecodeError, ValueError):
         pass
 

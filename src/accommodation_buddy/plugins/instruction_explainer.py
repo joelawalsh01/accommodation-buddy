@@ -25,7 +25,7 @@ class InstructionExplainerPlugin(BasePlugin):
             name="Instruction Explainer",
             description=(
                 "Generates heritage-language explanations of activity instructions "
-                "at the appropriate WIDA proficiency level, including step-by-step "
+                "at the appropriate ELPAC proficiency level, including step-by-step "
                 "task flow descriptions and comprehension checks for the teacher."
             ),
             category=PluginCategory.DOCUMENT_ACCOMMODATION,
@@ -65,10 +65,16 @@ class InstructionExplainerPlugin(BasePlugin):
 
         client = OllamaClient()
 
+        ms = options.get("_model_settings")
+        model = ms.scaffolding_model if ms else None
+        keep_alive = ms.keep_alive if ms else None
+
         try:
             raw_response = await client.generate(
                 prompt=prompt,
                 system=INSTRUCTION_EXPLAINER_SYSTEM_PROMPT,
+                model=model,
+                keep_alive=keep_alive,
             )
         except Exception:
             logger.exception("LLM call failed for instruction_explainer plugin")

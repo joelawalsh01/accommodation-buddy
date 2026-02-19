@@ -19,6 +19,7 @@ class OllamaClient:
         model: str | None = None,
         images: list[str] | None = None,
         system: str | None = None,
+        keep_alive: str | None = None,
     ) -> str:
         model = model or settings.scaffolding_model
         payload: dict = {
@@ -30,6 +31,8 @@ class OllamaClient:
             payload["images"] = images
         if system:
             payload["system"] = system
+        if keep_alive is not None:
+            payload["keep_alive"] = keep_alive
 
         async with httpx.AsyncClient(timeout=300.0) as client:
             resp = await client.post(
@@ -43,6 +46,7 @@ class OllamaClient:
         messages: list[dict],
         model: str | None = None,
         stream: bool = False,
+        keep_alive: str | None = None,
     ) -> str | AsyncIterator[str]:
         model = model or settings.scaffolding_model
         payload = {
@@ -50,6 +54,8 @@ class OllamaClient:
             "messages": messages,
             "stream": stream,
         }
+        if keep_alive is not None:
+            payload["keep_alive"] = keep_alive
 
         if stream:
             return self._stream_chat(payload)
@@ -78,6 +84,19 @@ class OllamaClient:
             resp = await client.get(f"{self.base_url}/api/tags")
             resp.raise_for_status()
             return resp.json().get("models", [])
+
+    async def list_running_models(self) -> list[dict]:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.get(f"{self.base_url}/api/ps")
+            resp.raise_for_status()
+            return resp.json().get("models", [])
+
+    async def unload_model(self, name: str) -> None:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            await client.post(
+                f"{self.base_url}/api/generate",
+                json={"model": name, "prompt": "", "keep_alive": "0"},
+            )
 
     async def health_check(self) -> bool:
         try:
