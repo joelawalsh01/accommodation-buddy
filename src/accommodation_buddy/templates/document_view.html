@@ -41,6 +41,11 @@
            class="btn btn-sm" style="background:#16a34a;color:white;border-color:#16a34a;">
             Export PDF
         </a>
+        <a href="/documents/{{ class_id }}/{{ document.id }}/export/pdf?translation_layout=inline{% if selected_student_id %}&student_id={{ selected_student_id }}{% endif %}"
+           class="btn btn-sm" style="background:#0284c7;color:white;border-color:#0284c7;"
+           title="Places translation inline below each page's English text">
+            Export PDF (Inline Translation)
+        </a>
         <a href="/features/{{ class_id }}" class="btn btn-secondary btn-sm">Manage Features</a>
     </div>
 </div>

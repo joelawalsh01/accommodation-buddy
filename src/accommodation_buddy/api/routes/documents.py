@@ -464,6 +464,7 @@ async def export_pdf(
     class_id: int,
     document_id: int,
     student_id: int | None = None,
+    translation_layout: str = "end",
     teacher: Teacher = Depends(get_current_teacher),
     db: AsyncSession = Depends(get_db),
 ):
@@ -517,24 +518,114 @@ async def export_pdf(
     from accommodation_buddy.services.pdf_export import (
         merge_with_original,
         render_accommodations_pdf,
+        render_inline_translation_pdf,
+        split_text_by_pages,
+        split_translation_by_english_pages,
     )
 
     jinja_env = request.app.state.templates.env
-    acc_pdf = render_accommodations_pdf(
-        jinja_env=jinja_env,
-        document=doc,
-        teacher=teacher,
-        class_obj=class_obj,
-        student=student,
-        accommodations=accommodations,
-        plugin_names=plugin_names,
-    )
 
-    # If original is a PDF, merge with it
-    if doc.file_type == "pdf":
-        final_pdf = merge_with_original(doc.file_path, acc_pdf)
+    # Check if inline translation layout is requested and feasible
+    use_inline = False
+    translation_acc = None
+    non_translation_accs = []
+
+    if translation_layout == "inline":
+        for acc in accommodations:
+            if acc.plugin_id == "translation":
+                translation_acc = acc
+            else:
+                non_translation_accs.append(acc)
+
+        if translation_acc and translation_acc.generated_output:
+            translated_text = translation_acc.generated_output.get("translated_text", "")
+            english_text = doc.extracted_text or ""
+
+            english_pages = split_text_by_pages(english_text)
+
+            if english_pages:
+                # Split translation to match English pages (marker-based or proportional)
+                translation_pages = split_translation_by_english_pages(
+                    english_pages, translated_text
+                )
+                if translation_pages:
+                    use_inline = True
+                    logger.info(
+                        f"Inline export: {len(english_pages)} English pages, "
+                        f"{len(translation_pages)} translation pages"
+                    )
+
+    if use_inline:
+        # For PDF originals, the original page is already interleaved —
+        # only render the translation (no English OCR text).
+        # For non-PDF originals, show both English and translation.
+        is_pdf_original = doc.file_type == "pdf"
+
+        # Render per-page inline translation PDFs
+        inline_page_pdfs = []
+        trans_by_page = {num: text for num, text in translation_pages}
+
+        for page_num, eng_text in english_pages:
+            page_html = render_inline_translation_pdf(
+                jinja_env=jinja_env,
+                document=doc,
+                teacher=teacher,
+                class_obj=class_obj,
+                student=student,
+                english_pages=[(page_num, eng_text)],
+                translation_pages=[(page_num, trans_by_page.get(page_num, ""))],
+                non_translation_accommodations=[],
+                plugin_names=plugin_names,
+                show_english=not is_pdf_original,
+            )
+            inline_page_pdfs.append(page_html)
+
+        # Render non-translation accommodations as a separate PDF
+        remaining_pdf = None
+        if non_translation_accs:
+            remaining_pdf = render_accommodations_pdf(
+                jinja_env=jinja_env,
+                document=doc,
+                teacher=teacher,
+                class_obj=class_obj,
+                student=student,
+                accommodations=non_translation_accs,
+                plugin_names=plugin_names,
+            )
+
+        if doc.file_type == "pdf":
+            final_pdf = merge_with_original(
+                doc.file_path, remaining_pdf or b"", inline_page_pdfs=inline_page_pdfs
+            )
+        else:
+            # No original PDF to interleave — render inline template with all pages + remaining accs
+            final_pdf = render_inline_translation_pdf(
+                jinja_env=jinja_env,
+                document=doc,
+                teacher=teacher,
+                class_obj=class_obj,
+                student=student,
+                english_pages=english_pages,
+                translation_pages=translation_pages,
+                non_translation_accommodations=non_translation_accs,
+                plugin_names=plugin_names,
+            )
     else:
-        final_pdf = acc_pdf
+        # Default: all accommodations at the end
+        acc_pdf = render_accommodations_pdf(
+            jinja_env=jinja_env,
+            document=doc,
+            teacher=teacher,
+            class_obj=class_obj,
+            student=student,
+            accommodations=accommodations,
+            plugin_names=plugin_names,
+        )
+
+        if doc.file_type == "pdf":
+            final_pdf = merge_with_original(doc.file_path, acc_pdf)
+        else:
+            final_pdf = acc_pdf
 
     # Build filename
     stem = Path(doc.filename).stem
