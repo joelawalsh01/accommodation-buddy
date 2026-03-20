@@ -24,6 +24,7 @@ dependencies = [
     "pydantic-settings>=2.0",
     "itsdangerous>=2.1",
     "psycopg2-binary>=2.9.11",
+    "pytesseract>=0.3",
 ]
 
 [project.scripts]

@@ -2,7 +2,7 @@ services:
   app:
     build: .
     command: >
-      uv run accommodation-buddy serve
+      scripts/entrypoint.sh
         --scaffolding-model ${SCAFFOLDING_MODEL:-llama3}
         --ocr-model ${OCR_MODEL:-deepseek-r1}
     ports:
@@ -10,12 +10,12 @@ services:
     volumes:
       - ./data/uploads:/app/data/uploads
     env_file: .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       postgres:
         condition: service_healthy
       redis:
-        condition: service_started
-      ollama:
         condition: service_started
 
   worker:
@@ -26,29 +26,13 @@ services:
     volumes:
       - ./data/uploads:/app/data/uploads
     env_file: .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_started
-      ollama:
-        condition: service_started
-
-  ollama:
-    image: ollama/ollama:latest
-    ports:
-      - "11434:11434"
-    volumes:
-      - ~/.ollama:/root/.ollama
-    # Uncomment below for GPU passthrough on Linux with NVIDIA:
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: all
-    #           capabilities: [gpu]
-    entrypoint: ["ollama", "serve"]
 
   postgres:
     image: postgres:16-alpine

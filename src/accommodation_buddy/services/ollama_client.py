@@ -20,6 +20,7 @@ class OllamaClient:
         images: list[str] | None = None,
         system: str | None = None,
         keep_alive: str | None = None,
+        options: dict | None = None,
     ) -> str:
         model = model or settings.scaffolding_model
         payload: dict = {
@@ -33,13 +34,24 @@ class OllamaClient:
             payload["system"] = system
         if keep_alive is not None:
             payload["keep_alive"] = keep_alive
+        if options:
+            payload["options"] = options
 
         async with httpx.AsyncClient(timeout=300.0) as client:
             resp = await client.post(
                 f"{self.base_url}/api/generate", json=payload
             )
             resp.raise_for_status()
-            return resp.json()["response"]
+            data = resp.json()
+            result = data["response"]
+            if not result.strip():
+                logger.warning(
+                    f"Empty response from {model}. "
+                    f"done_reason={data.get('done_reason')}, "
+                    f"eval_count={data.get('eval_count')}, "
+                    f"prompt_eval_count={data.get('prompt_eval_count')}"
+                )
+            return result
 
     async def chat(
         self,

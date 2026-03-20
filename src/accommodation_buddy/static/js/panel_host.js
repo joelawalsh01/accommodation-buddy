@@ -1,7 +1,7 @@
 function panelHost() {
     return {
         init() {
-            // Make panels draggable for reordering
+            // Make panels draggable for reordering (via header only)
             this.initDragAndDrop();
         },
 
@@ -12,15 +12,19 @@ function panelHost() {
             let draggedEl = null;
 
             sidebar.querySelectorAll('.plugin-panel').forEach(panel => {
-                panel.draggable = true;
+                const header = panel.querySelector('.panel-header');
+                if (!header) return;
 
-                panel.addEventListener('dragstart', (e) => {
+                // Only the header initiates drag — content remains selectable
+                header.draggable = true;
+
+                header.addEventListener('dragstart', (e) => {
                     draggedEl = panel;
                     panel.classList.add('dragging');
                     e.dataTransfer.effectAllowed = 'move';
                 });
 
-                panel.addEventListener('dragend', () => {
+                header.addEventListener('dragend', () => {
                     panel.classList.remove('dragging');
                     draggedEl = null;
                     sidebar.querySelectorAll('.plugin-panel').forEach(p => p.classList.remove('drag-over'));

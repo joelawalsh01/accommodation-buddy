@@ -68,6 +68,7 @@ class PanelHost:
                 "plugin_icon": manifest.icon,
                 "document_id": document_id,
                 "student_id": student_id,
+                "class_id": class_id,
                 "collapsed": collapsed,
             })
 

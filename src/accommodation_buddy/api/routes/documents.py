@@ -1,3 +1,4 @@
+import logging
 import os
 import uuid
 from pathlib import Path
@@ -18,6 +19,8 @@ from accommodation_buddy.db.session import get_db
 from accommodation_buddy.services.document_parser import detect_file_type
 from accommodation_buddy.services.model_settings import get_teacher_model_settings
 from accommodation_buddy.tasks.plugin_tasks import process_document_ocr, run_plugin
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
@@ -62,6 +65,7 @@ async def document_list(
 async def upload_document(
     class_id: int,
     file: UploadFile = File(...),
+    ocr_mode: str = Form("fast"),
     teacher: Teacher = Depends(get_current_teacher),
     db: AsyncSession = Depends(get_db),
 ):
@@ -100,7 +104,65 @@ async def upload_document(
     await db.refresh(doc)
 
     # Dispatch OCR task
-    process_document_ocr.delay(doc.id, teacher.id)
+    process_document_ocr.delay(doc.id, teacher.id, ocr_mode)
+
+    return RedirectResponse(f"/documents/{class_id}", status_code=303)
+
+
+@router.post("/{class_id}/{document_id}/cancel")
+async def cancel_document_ocr(
+    class_id: int,
+    document_id: int,
+    teacher: Teacher = Depends(get_current_teacher),
+    db: AsyncSession = Depends(get_db),
+):
+    if teacher is None:
+        return RedirectResponse("/login", status_code=303)
+
+    doc = await db.get(Document, document_id)
+    if doc is None or doc.class_id != class_id or doc.teacher_id != teacher.id:
+        return RedirectResponse(f"/documents/{class_id}", status_code=303)
+
+    if doc.ocr_status in ("pending", "processing"):
+        doc.ocr_status = "failed"
+        doc.status_detail = "Cancelled by user"
+        doc.ocr_progress = 0
+        await db.commit()
+
+    return RedirectResponse(f"/documents/{class_id}", status_code=303)
+
+
+@router.post("/{class_id}/{document_id}/delete")
+async def delete_document(
+    class_id: int,
+    document_id: int,
+    teacher: Teacher = Depends(get_current_teacher),
+    db: AsyncSession = Depends(get_db),
+):
+    if teacher is None:
+        return RedirectResponse("/login", status_code=303)
+
+    doc = await db.get(Document, document_id)
+    if doc is None or doc.class_id != class_id or doc.teacher_id != teacher.id:
+        return RedirectResponse(f"/documents/{class_id}", status_code=303)
+
+    # Delete the uploaded file
+    try:
+        file_path = Path(doc.file_path)
+        if file_path.exists():
+            file_path.unlink()
+    except Exception:
+        logger.warning(f"Could not delete file {doc.file_path}")
+
+    # Delete associated accommodations
+    acc_result = await db.execute(
+        select(Accommodation).where(Accommodation.document_id == document_id)
+    )
+    for acc in acc_result.scalars().all():
+        await db.delete(acc)
+
+    await db.delete(doc)
+    await db.commit()
 
     return RedirectResponse(f"/documents/{class_id}", status_code=303)
 
@@ -140,18 +202,42 @@ async def document_status_row(
             f'</div>'
         )
 
+    # Elapsed time
+    elapsed_html = ""
+    if doc.created_at:
+        import datetime
+        now = datetime.datetime.now(datetime.timezone.utc)
+        created = doc.created_at if doc.created_at.tzinfo else doc.created_at.replace(tzinfo=datetime.timezone.utc)
+        elapsed_secs = int((now - created).total_seconds())
+        if elapsed_secs >= 0:
+            minutes, secs = divmod(elapsed_secs, 60)
+            time_str = f"{minutes}m {secs}s" if minutes else f"{secs}s"
+            if not is_terminal:
+                elapsed_html = f'<div class="status-detail">Elapsed: {time_str}</div>'
+
     # Status detail
     detail_html = ""
     if doc.status_detail:
         detail_html = f'<div class="status-detail">{doc.status_detail}</div>'
 
     # Action column
+    delete_btn = (
+        f'<form method="post" action="/documents/{class_id}/{doc.id}/delete" '
+        f'style="display:inline" onsubmit="return confirm(\'Delete this document?\')">'
+        f'<button type="submit" class="btn btn-sm btn-danger">Delete</button></form>'
+    )
     if doc.ocr_status == "complete":
-        action = f'<a href="/documents/{class_id}/{doc.id}" class="btn btn-sm btn-primary">View &amp; Accommodate</a>'
+        action = f'<a href="/documents/{class_id}/{doc.id}" class="btn btn-sm btn-primary">View &amp; Accommodate</a> {delete_btn}'
     elif doc.ocr_status == "failed":
-        action = '<span class="text-error">Failed</span>'
+        action = f'<span class="text-error">Failed</span> {delete_btn}'
     else:
-        action = '<span class="text-muted processing-indicator"><span class="spinner"></span> Processing</span>'
+        cancel_btn = (
+            f'<form method="post" action="/documents/{class_id}/{doc.id}/cancel" '
+            f'style="display:inline">'
+            f'<button type="submit" class="btn btn-sm btn-warning">Cancel</button></form>'
+        )
+        processing_label = doc.status_detail if (doc.status_detail and "page" in doc.status_detail) else "Processing"
+        action = f'<span class="text-muted processing-indicator"><span class="spinner"></span> {processing_label}</span> {cancel_btn} {delete_btn}'
 
     created = doc.created_at.strftime('%Y-%m-%d %H:%M') if doc.created_at else ''
 
@@ -161,10 +247,10 @@ async def document_status_row(
         f'<td><span class="badge">{doc.file_type}</span></td>'
         f'<td class="status-cell">'
         f'<span class="status-badge status-{doc.ocr_status}">{doc.ocr_status}</span>'
-        f'{detail_html}{progress_html}'
+        f'{detail_html}{elapsed_html}{progress_html}'
         f'</td>'
         f'<td>{created}</td>'
-        f'<td>{action}</td>'
+        f'<td class="actions-cell">{action}</td>'
         f'</tr>'
     )
     return HTMLResponse(html)
@@ -226,11 +312,18 @@ async def run_plugin_endpoint(
     request: Request,
     plugin_id: str,
     document_id: int = Form(...),
-    student_id: int | None = Form(None),
+    student_id: str | None = Form(None),
     class_id: int = Form(...),
+    custom_text: str | None = Form(None),
+    grade_level: str | None = Form(None),
     teacher: Teacher = Depends(get_current_teacher),
     db: AsyncSession = Depends(get_db),
 ):
+    # Coerce empty strings to None
+    student_id = int(student_id) if student_id and student_id.strip() else None
+    grade_level = grade_level if grade_level and grade_level.strip() else None
+    custom_text = custom_text if custom_text and custom_text.strip() else None
+
     if teacher is None:
         return HTMLResponse("<div class='error'>Not authenticated</div>", status_code=401)
 
@@ -266,12 +359,19 @@ async def run_plugin_endpoint(
 
     model_settings = await get_teacher_model_settings(teacher.id, db)
 
+    # Use custom text if provided (e.g., selected text for translation)
+    text_to_process = custom_text.strip() if custom_text and custom_text.strip() else (doc.extracted_text or "")
+
+    plugin_options = {"_model_settings": model_settings}
+    if grade_level:
+        plugin_options["grade_level"] = grade_level
+
     try:
         result = await plugin.generate(
-            document_text=doc.extracted_text or "",
+            document_text=text_to_process,
             student_profile=student_profile,
             class_profile=class_profile,
-            options={"_model_settings": model_settings},
+            options=plugin_options,
         )
 
         # Save accommodation
