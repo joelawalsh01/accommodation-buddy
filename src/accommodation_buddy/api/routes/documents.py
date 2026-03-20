@@ -4,7 +4,7 @@ import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -456,3 +456,93 @@ async def update_accommodation_status(
         await db.commit()
 
     return HTMLResponse(f'<span class="badge badge-{status}">{status}</span>')
+
+
+@router.get("/{class_id}/{document_id}/export/pdf")
+async def export_pdf(
+    request: Request,
+    class_id: int,
+    document_id: int,
+    student_id: int | None = None,
+    teacher: Teacher = Depends(get_current_teacher),
+    db: AsyncSession = Depends(get_db),
+):
+    if teacher is None:
+        return RedirectResponse("/login", status_code=303)
+
+    doc = await db.get(Document, document_id)
+    if doc is None or doc.class_id != class_id or doc.teacher_id != teacher.id:
+        return RedirectResponse(f"/documents/{class_id}", status_code=303)
+
+    class_obj = await db.get(Class, class_id)
+
+    # Get student if specified
+    student = None
+    if student_id:
+        student = await db.get(Student, student_id)
+
+    # Get only the latest accommodation per plugin (deduplicate repeat runs)
+    from sqlalchemy import func as sa_func
+
+    latest_ids_subq = (
+        select(sa_func.max(Accommodation.id).label("max_id"))
+        .where(Accommodation.document_id == document_id)
+        .group_by(Accommodation.plugin_id, Accommodation.target_student_id)
+    )
+    if student_id:
+        latest_ids_subq = latest_ids_subq.where(
+            Accommodation.target_student_id == student_id
+        )
+
+    acc_query = (
+        select(Accommodation)
+        .where(Accommodation.id.in_(latest_ids_subq.scalar_subquery()))
+        .order_by(Accommodation.created_at)
+    )
+
+    acc_result = await db.execute(acc_query)
+    accommodations = acc_result.scalars().all()
+
+    # Build plugin name lookup
+    registry = PluginRegistry.get_instance()
+    plugin_names = {}
+    for acc in accommodations:
+        if acc.plugin_id not in plugin_names:
+            plugin = registry.get(acc.plugin_id)
+            if plugin:
+                plugin_names[acc.plugin_id] = plugin.manifest().name
+            else:
+                plugin_names[acc.plugin_id] = acc.plugin_id.replace("_", " ").title()
+
+    from accommodation_buddy.services.pdf_export import (
+        merge_with_original,
+        render_accommodations_pdf,
+    )
+
+    jinja_env = request.app.state.templates.env
+    acc_pdf = render_accommodations_pdf(
+        jinja_env=jinja_env,
+        document=doc,
+        teacher=teacher,
+        class_obj=class_obj,
+        student=student,
+        accommodations=accommodations,
+        plugin_names=plugin_names,
+    )
+
+    # If original is a PDF, merge with it
+    if doc.file_type == "pdf":
+        final_pdf = merge_with_original(doc.file_path, acc_pdf)
+    else:
+        final_pdf = acc_pdf
+
+    # Build filename
+    stem = Path(doc.filename).stem
+    suffix = f"_{student.pseudonym}" if student else ""
+    filename = f"{stem}{suffix}_accommodated.pdf"
+
+    return Response(
+        content=final_pdf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
