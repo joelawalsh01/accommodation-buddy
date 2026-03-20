@@ -112,9 +112,9 @@ class TranslationPlugin(BasePlugin):
                 status="failed",
             )
 
-        # Resolve grade level
-        grade_level = None
-        if class_profile and class_profile.grade_level:
+        # Resolve grade level (explicit override > class default)
+        grade_level = options.get("grade_level")
+        if not grade_level and class_profile and class_profile.grade_level:
             grade_level = class_profile.grade_level
         grade_label, age_range = _resolve_grade(grade_level)
 

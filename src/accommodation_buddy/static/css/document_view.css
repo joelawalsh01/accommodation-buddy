@@ -74,7 +74,6 @@
     border: 1px solid var(--border);
     border-radius: var(--radius);
     box-shadow: var(--shadow);
-    overflow: hidden;
 }
 
 .panel-header {
@@ -104,7 +103,7 @@
 }
 .btn-run:hover { background: var(--primary-hover); }
 
-.panel-content { padding: .75rem; font-size: .85rem; }
+.panel-content { padding: .75rem; font-size: .85rem; overflow: visible; }
 .panel-empty { color: var(--text-muted); text-align: center; padding: .5rem; }
 .panel-error { color: var(--danger); padding: .5rem; }
 .panel-body { font-size: .85rem; }
@@ -161,6 +160,12 @@
 .strategy-section h4 { font-size: .85rem; font-weight: 600; margin-bottom: .25rem; }
 .group-card { padding: .35rem .5rem; background: var(--bg); border-radius: 4px; margin-bottom: .35rem; font-size: .85rem; }
 .group-activity { font-size: .8rem; color: var(--text-muted); margin-top: .15rem; }
+
+/* Translation result */
+.translated-text {
+    user-select: text;
+    cursor: text;
+}
 
 /* Coming Soon */
 .coming-soon { text-align: center; padding: 1rem; color: var(--text-muted); }

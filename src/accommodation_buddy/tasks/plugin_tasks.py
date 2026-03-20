@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import logging
+import time
 
 from accommodation_buddy.tasks.celery_app import celery_app
 
@@ -25,7 +26,7 @@ async def _update_doc_status(db, doc, status, detail, progress=None):
 
 
 @celery_app.task(bind=True, name="process_document_ocr")
-def process_document_ocr(self, document_id: int, teacher_id: int | None = None):
+def process_document_ocr(self, document_id: int, teacher_id: int | None = None, ocr_mode: str = "fast"):
     async def _run():
         from sqlalchemy.ext.asyncio import create_async_engine
         from sqlalchemy.ext.asyncio import async_sessionmaker
@@ -34,7 +35,9 @@ def process_document_ocr(self, document_id: int, teacher_id: int | None = None):
         from accommodation_buddy.db.models import Document
         from accommodation_buddy.services.document_parser import (
             extract_docx_text,
+            extract_image_text_fast,
             extract_pdf_pages_as_images,
+            extract_pdf_text_fast,
             extract_pptx_text,
         )
         from accommodation_buddy.services.model_settings import get_teacher_model_settings
@@ -58,6 +61,7 @@ def process_document_ocr(self, document_id: int, teacher_id: int | None = None):
             file_type = doc.file_type
 
             await _update_doc_status(db, doc, "processing", "Initializing...", 0)
+            t0 = time.monotonic()
 
             try:
                 # DOCX extraction
@@ -66,7 +70,8 @@ def process_document_ocr(self, document_id: int, teacher_id: int | None = None):
                     text = extract_docx_text(file_path)
                     await _update_doc_status(db, doc, "processing", "Finalizing...", 90)
                     doc.extracted_text = text
-                    await _update_doc_status(db, doc, "complete", f"Extracted {len(text)} characters", 100)
+                    elapsed = int(time.monotonic() - t0)
+                    await _update_doc_status(db, doc, "complete", f"Extracted {len(text)} characters in {elapsed}s", 100)
                     return {"status": "complete", "document_id": document_id}
 
                 # PPTX extraction
@@ -75,10 +80,32 @@ def process_document_ocr(self, document_id: int, teacher_id: int | None = None):
                     text = extract_pptx_text(file_path)
                     await _update_doc_status(db, doc, "processing", "Finalizing...", 90)
                     doc.extracted_text = text
-                    await _update_doc_status(db, doc, "complete", f"Extracted {len(text)} characters", 100)
+                    elapsed = int(time.monotonic() - t0)
+                    await _update_doc_status(db, doc, "complete", f"Extracted {len(text)} characters in {elapsed}s", 100)
                     return {"status": "complete", "document_id": document_id}
 
-                # PDF and image: use OCR via Ollama
+                # Fast OCR mode: use Tesseract (no LLM needed)
+                if ocr_mode == "fast":
+                    if file_type == "pdf":
+                        await _update_doc_status(db, doc, "processing", "Fast OCR (Tesseract)...", 30)
+                        text = extract_pdf_text_fast(file_path)
+                    elif file_type == "image":
+                        await _update_doc_status(db, doc, "processing", "Fast OCR (Tesseract)...", 30)
+                        text = extract_image_text_fast(file_path)
+                    else:
+                        await _update_doc_status(db, doc, "failed", f"Unsupported file type: {file_type}", 0)
+                        return {"error": f"Unsupported file type: {file_type}"}
+
+                    doc.extracted_text = text
+                    elapsed = int(time.monotonic() - t0)
+                    await _update_doc_status(
+                        db, doc, "complete",
+                        f"Extracted {len(text)} characters in {elapsed}s (fast mode)",
+                        100,
+                    )
+                    return {"status": "complete", "document_id": document_id}
+
+                # LLM Vision OCR mode: use Ollama
                 if file_type == "pdf":
                     await _update_doc_status(db, doc, "processing", "Converting PDF to images...", 10)
                     page_images = extract_pdf_pages_as_images(file_path)
@@ -112,14 +139,19 @@ def process_document_ocr(self, document_id: int, teacher_id: int | None = None):
                     )
 
                     b64 = base64.b64encode(img_bytes).decode("utf-8")
+                    # Prepend system prompt to user prompt because the
+                    # deepseek-ocr Modelfile template ({{ .Prompt }}) drops
+                    # the system parameter entirely.
+                    combined_prompt = f"{OCR_SYSTEM_PROMPT}\n\n{OCR_USER_PROMPT}"
                     try:
                         page_text = await client.generate(
-                            prompt=OCR_USER_PROMPT,
+                            prompt=combined_prompt,
                             model=ocr_model,
                             images=[b64],
-                            system=OCR_SYSTEM_PROMPT,
                             keep_alive=keep_alive,
+                            options={"num_predict": 4096},
                         )
+                        logger.info(f"Page {page_num} OCR result: {len(page_text)} chars, preview: {repr(page_text[:100])}")
                         all_text.append(f"## Page {page_num}\n\n{page_text}")
                     except Exception:
                         logger.exception(f"OCR failed for page {page_num}")
@@ -129,9 +161,12 @@ def process_document_ocr(self, document_id: int, teacher_id: int | None = None):
 
                 combined = "\n\n---\n\n".join(all_text)
                 doc.extracted_text = combined
+                elapsed = int(time.monotonic() - t0)
+                minutes, secs = divmod(elapsed, 60)
+                time_str = f"{minutes}m {secs}s" if minutes else f"{secs}s"
                 await _update_doc_status(
                     db, doc, "complete",
-                    f"Extracted {len(combined)} characters from {total_pages} page(s)",
+                    f"Extracted {len(combined)} characters from {total_pages} page(s) in {time_str}",
                     100,
                 )
                 return {"status": "complete", "document_id": document_id}

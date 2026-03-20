@@ -1,9 +1,10 @@
+import logging
 import os
 import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -18,6 +19,8 @@ from accommodation_buddy.db.session import get_db
 from accommodation_buddy.services.document_parser import detect_file_type
 from accommodation_buddy.services.model_settings import get_teacher_model_settings
 from accommodation_buddy.tasks.plugin_tasks import process_document_ocr, run_plugin
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
@@ -62,6 +65,7 @@ async def document_list(
 async def upload_document(
     class_id: int,
     file: UploadFile = File(...),
+    ocr_mode: str = Form("fast"),
     teacher: Teacher = Depends(get_current_teacher),
     db: AsyncSession = Depends(get_db),
 ):
@@ -100,7 +104,65 @@ async def upload_document(
     await db.refresh(doc)
 
     # Dispatch OCR task
-    process_document_ocr.delay(doc.id, teacher.id)
+    process_document_ocr.delay(doc.id, teacher.id, ocr_mode)
+
+    return RedirectResponse(f"/documents/{class_id}", status_code=303)
+
+
+@router.post("/{class_id}/{document_id}/cancel")
+async def cancel_document_ocr(
+    class_id: int,
+    document_id: int,
+    teacher: Teacher = Depends(get_current_teacher),
+    db: AsyncSession = Depends(get_db),
+):
+    if teacher is None:
+        return RedirectResponse("/login", status_code=303)
+
+    doc = await db.get(Document, document_id)
+    if doc is None or doc.class_id != class_id or doc.teacher_id != teacher.id:
+        return RedirectResponse(f"/documents/{class_id}", status_code=303)
+
+    if doc.ocr_status in ("pending", "processing"):
+        doc.ocr_status = "failed"
+        doc.status_detail = "Cancelled by user"
+        doc.ocr_progress = 0
+        await db.commit()
+
+    return RedirectResponse(f"/documents/{class_id}", status_code=303)
+
+
+@router.post("/{class_id}/{document_id}/delete")
+async def delete_document(
+    class_id: int,
+    document_id: int,
+    teacher: Teacher = Depends(get_current_teacher),
+    db: AsyncSession = Depends(get_db),
+):
+    if teacher is None:
+        return RedirectResponse("/login", status_code=303)
+
+    doc = await db.get(Document, document_id)
+    if doc is None or doc.class_id != class_id or doc.teacher_id != teacher.id:
+        return RedirectResponse(f"/documents/{class_id}", status_code=303)
+
+    # Delete the uploaded file
+    try:
+        file_path = Path(doc.file_path)
+        if file_path.exists():
+            file_path.unlink()
+    except Exception:
+        logger.warning(f"Could not delete file {doc.file_path}")
+
+    # Delete associated accommodations
+    acc_result = await db.execute(
+        select(Accommodation).where(Accommodation.document_id == document_id)
+    )
+    for acc in acc_result.scalars().all():
+        await db.delete(acc)
+
+    await db.delete(doc)
+    await db.commit()
 
     return RedirectResponse(f"/documents/{class_id}", status_code=303)
 
@@ -140,18 +202,42 @@ async def document_status_row(
             f'</div>'
         )
 
+    # Elapsed time
+    elapsed_html = ""
+    if doc.created_at:
+        import datetime
+        now = datetime.datetime.now(datetime.timezone.utc)
+        created = doc.created_at if doc.created_at.tzinfo else doc.created_at.replace(tzinfo=datetime.timezone.utc)
+        elapsed_secs = int((now - created).total_seconds())
+        if elapsed_secs >= 0:
+            minutes, secs = divmod(elapsed_secs, 60)
+            time_str = f"{minutes}m {secs}s" if minutes else f"{secs}s"
+            if not is_terminal:
+                elapsed_html = f'<div class="status-detail">Elapsed: {time_str}</div>'
+
     # Status detail
     detail_html = ""
     if doc.status_detail:
         detail_html = f'<div class="status-detail">{doc.status_detail}</div>'
 
     # Action column
+    delete_btn = (
+        f'<form method="post" action="/documents/{class_id}/{doc.id}/delete" '
+        f'style="display:inline" onsubmit="return confirm(\'Delete this document?\')">'
+        f'<button type="submit" class="btn btn-sm btn-danger">Delete</button></form>'
+    )
     if doc.ocr_status == "complete":
-        action = f'<a href="/documents/{class_id}/{doc.id}" class="btn btn-sm btn-primary">View &amp; Accommodate</a>'
+        action = f'<a href="/documents/{class_id}/{doc.id}" class="btn btn-sm btn-primary">View &amp; Accommodate</a> {delete_btn}'
     elif doc.ocr_status == "failed":
-        action = '<span class="text-error">Failed</span>'
+        action = f'<span class="text-error">Failed</span> {delete_btn}'
     else:
-        action = '<span class="text-muted processing-indicator"><span class="spinner"></span> Processing</span>'
+        cancel_btn = (
+            f'<form method="post" action="/documents/{class_id}/{doc.id}/cancel" '
+            f'style="display:inline">'
+            f'<button type="submit" class="btn btn-sm btn-warning">Cancel</button></form>'
+        )
+        processing_label = doc.status_detail if (doc.status_detail and "page" in doc.status_detail) else "Processing"
+        action = f'<span class="text-muted processing-indicator"><span class="spinner"></span> {processing_label}</span> {cancel_btn} {delete_btn}'
 
     created = doc.created_at.strftime('%Y-%m-%d %H:%M') if doc.created_at else ''
 
@@ -161,10 +247,10 @@ async def document_status_row(
         f'<td><span class="badge">{doc.file_type}</span></td>'
         f'<td class="status-cell">'
         f'<span class="status-badge status-{doc.ocr_status}">{doc.ocr_status}</span>'
-        f'{detail_html}{progress_html}'
+        f'{detail_html}{elapsed_html}{progress_html}'
         f'</td>'
         f'<td>{created}</td>'
-        f'<td>{action}</td>'
+        f'<td class="actions-cell">{action}</td>'
         f'</tr>'
     )
     return HTMLResponse(html)
@@ -226,11 +312,18 @@ async def run_plugin_endpoint(
     request: Request,
     plugin_id: str,
     document_id: int = Form(...),
-    student_id: int | None = Form(None),
+    student_id: str | None = Form(None),
     class_id: int = Form(...),
+    custom_text: str | None = Form(None),
+    grade_level: str | None = Form(None),
     teacher: Teacher = Depends(get_current_teacher),
     db: AsyncSession = Depends(get_db),
 ):
+    # Coerce empty strings to None
+    student_id = int(student_id) if student_id and student_id.strip() else None
+    grade_level = grade_level if grade_level and grade_level.strip() else None
+    custom_text = custom_text if custom_text and custom_text.strip() else None
+
     if teacher is None:
         return HTMLResponse("<div class='error'>Not authenticated</div>", status_code=401)
 
@@ -266,12 +359,19 @@ async def run_plugin_endpoint(
 
     model_settings = await get_teacher_model_settings(teacher.id, db)
 
+    # Use custom text if provided (e.g., selected text for translation)
+    text_to_process = custom_text.strip() if custom_text and custom_text.strip() else (doc.extracted_text or "")
+
+    plugin_options = {"_model_settings": model_settings}
+    if grade_level:
+        plugin_options["grade_level"] = grade_level
+
     try:
         result = await plugin.generate(
-            document_text=doc.extracted_text or "",
+            document_text=text_to_process,
             student_profile=student_profile,
             class_profile=class_profile,
-            options={"_model_settings": model_settings},
+            options=plugin_options,
         )
 
         # Save accommodation
@@ -356,3 +456,184 @@ async def update_accommodation_status(
         await db.commit()
 
     return HTMLResponse(f'<span class="badge badge-{status}">{status}</span>')
+
+
+@router.get("/{class_id}/{document_id}/export/pdf")
+async def export_pdf(
+    request: Request,
+    class_id: int,
+    document_id: int,
+    student_id: int | None = None,
+    translation_layout: str = "end",
+    teacher: Teacher = Depends(get_current_teacher),
+    db: AsyncSession = Depends(get_db),
+):
+    if teacher is None:
+        return RedirectResponse("/login", status_code=303)
+
+    doc = await db.get(Document, document_id)
+    if doc is None or doc.class_id != class_id or doc.teacher_id != teacher.id:
+        return RedirectResponse(f"/documents/{class_id}", status_code=303)
+
+    class_obj = await db.get(Class, class_id)
+
+    # Get student if specified
+    student = None
+    if student_id:
+        student = await db.get(Student, student_id)
+
+    # Get only the latest accommodation per plugin (deduplicate repeat runs)
+    from sqlalchemy import func as sa_func
+
+    latest_ids_subq = (
+        select(sa_func.max(Accommodation.id).label("max_id"))
+        .where(Accommodation.document_id == document_id)
+        .group_by(Accommodation.plugin_id, Accommodation.target_student_id)
+    )
+    if student_id:
+        latest_ids_subq = latest_ids_subq.where(
+            Accommodation.target_student_id == student_id
+        )
+
+    acc_query = (
+        select(Accommodation)
+        .where(Accommodation.id.in_(latest_ids_subq.scalar_subquery()))
+        .order_by(Accommodation.created_at)
+    )
+
+    acc_result = await db.execute(acc_query)
+    accommodations = acc_result.scalars().all()
+
+    # Build plugin name lookup
+    registry = PluginRegistry.get_instance()
+    plugin_names = {}
+    for acc in accommodations:
+        if acc.plugin_id not in plugin_names:
+            plugin = registry.get(acc.plugin_id)
+            if plugin:
+                plugin_names[acc.plugin_id] = plugin.manifest().name
+            else:
+                plugin_names[acc.plugin_id] = acc.plugin_id.replace("_", " ").title()
+
+    from accommodation_buddy.services.pdf_export import (
+        merge_with_original,
+        render_accommodations_pdf,
+        render_inline_translation_pdf,
+        split_text_by_pages,
+        split_translation_by_english_pages,
+    )
+
+    jinja_env = request.app.state.templates.env
+
+    # Check if inline translation layout is requested and feasible
+    use_inline = False
+    translation_acc = None
+    non_translation_accs = []
+
+    if translation_layout == "inline":
+        for acc in accommodations:
+            if acc.plugin_id == "translation":
+                translation_acc = acc
+            else:
+                non_translation_accs.append(acc)
+
+        if translation_acc and translation_acc.generated_output:
+            translated_text = translation_acc.generated_output.get("translated_text", "")
+            english_text = doc.extracted_text or ""
+
+            english_pages = split_text_by_pages(english_text)
+
+            if english_pages:
+                # Split translation to match English pages (marker-based or proportional)
+                translation_pages = split_translation_by_english_pages(
+                    english_pages, translated_text
+                )
+                if translation_pages:
+                    use_inline = True
+                    logger.info(
+                        f"Inline export: {len(english_pages)} English pages, "
+                        f"{len(translation_pages)} translation pages"
+                    )
+
+    if use_inline:
+        # For PDF originals, the original page is already interleaved —
+        # only render the translation (no English OCR text).
+        # For non-PDF originals, show both English and translation.
+        is_pdf_original = doc.file_type == "pdf"
+
+        # Render per-page inline translation PDFs
+        inline_page_pdfs = []
+        trans_by_page = {num: text for num, text in translation_pages}
+
+        for page_num, eng_text in english_pages:
+            page_html = render_inline_translation_pdf(
+                jinja_env=jinja_env,
+                document=doc,
+                teacher=teacher,
+                class_obj=class_obj,
+                student=student,
+                english_pages=[(page_num, eng_text)],
+                translation_pages=[(page_num, trans_by_page.get(page_num, ""))],
+                non_translation_accommodations=[],
+                plugin_names=plugin_names,
+                show_english=not is_pdf_original,
+            )
+            inline_page_pdfs.append(page_html)
+
+        # Render non-translation accommodations as a separate PDF
+        remaining_pdf = None
+        if non_translation_accs:
+            remaining_pdf = render_accommodations_pdf(
+                jinja_env=jinja_env,
+                document=doc,
+                teacher=teacher,
+                class_obj=class_obj,
+                student=student,
+                accommodations=non_translation_accs,
+                plugin_names=plugin_names,
+            )
+
+        if doc.file_type == "pdf":
+            final_pdf = merge_with_original(
+                doc.file_path, remaining_pdf or b"", inline_page_pdfs=inline_page_pdfs
+            )
+        else:
+            # No original PDF to interleave — render inline template with all pages + remaining accs
+            final_pdf = render_inline_translation_pdf(
+                jinja_env=jinja_env,
+                document=doc,
+                teacher=teacher,
+                class_obj=class_obj,
+                student=student,
+                english_pages=english_pages,
+                translation_pages=translation_pages,
+                non_translation_accommodations=non_translation_accs,
+                plugin_names=plugin_names,
+            )
+    else:
+        # Default: all accommodations at the end
+        acc_pdf = render_accommodations_pdf(
+            jinja_env=jinja_env,
+            document=doc,
+            teacher=teacher,
+            class_obj=class_obj,
+            student=student,
+            accommodations=accommodations,
+            plugin_names=plugin_names,
+        )
+
+        if doc.file_type == "pdf":
+            final_pdf = merge_with_original(doc.file_path, acc_pdf)
+        else:
+            final_pdf = acc_pdf
+
+    # Build filename
+    stem = Path(doc.filename).stem
+    suffix = f"_{student.pseudonym}" if student else ""
+    filename = f"{stem}{suffix}_accommodated.pdf"
+
+    return Response(
+        content=final_pdf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )

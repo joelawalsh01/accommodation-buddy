@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+    @page {
+        size: letter;
+        margin: 0.75in;
+        @bottom-center {
+            content: "Page " counter(page);
+            font-size: 9pt;
+            color: #64748b;
+        }
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        font-size: 10pt;
+        line-height: 1.6;
+        color: #1e293b;
+    }
+
+    h1 { font-size: 16pt; color: #4f46e5; margin-bottom: 4pt; }
+    h2 { font-size: 13pt; color: #4f46e5; margin: 12pt 0 6pt; border-bottom: 2px solid #4f46e5; padding-bottom: 3pt; }
+    h3 { font-size: 11pt; margin: 8pt 0 4pt; }
+    h4 { font-size: 10pt; font-weight: 600; margin: 6pt 0 3pt; }
+
+    .header {
+        border-bottom: 2px solid #4f46e5;
+        padding-bottom: 8pt;
+        margin-bottom: 12pt;
+    }
+    .header-meta {
+        font-size: 9pt;
+        color: #64748b;
+        margin-top: 4pt;
+    }
+    .header-meta span { margin-right: 12pt; }
+
+    .badge {
+        display: inline-block;
+        padding: 1pt 6pt;
+        border-radius: 10pt;
+        font-size: 8pt;
+        font-weight: 600;
+    }
+    .badge-primary { background: #e0e7ff; color: #3730a3; }
+    .badge-success { background: #d1fae5; color: #065f46; }
+    .badge-warning { background: #fef3c7; color: #92400e; }
+    .badge-info { background: #dbeafe; color: #1e40af; }
+
+    .level-1 { background: #fee2e2; color: #991b1b; }
+    .level-2 { background: #fef3c7; color: #92400e; }
+    .level-3 { background: #d1fae5; color: #065f46; }
+    .level-4 { background: #dbeafe; color: #1e40af; }
+
+    /* Document text */
+    .doc-section {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 6pt;
+        padding: 12pt;
+        margin-bottom: 16pt;
+        font-size: 10pt;
+        line-height: 1.7;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+    }
+
+    /* Accommodation sections */
+    .accommodation-section {
+        margin-bottom: 16pt;
+        page-break-inside: avoid;
+    }
+
+    .plugin-header {
+        background: #f1f5f9;
+        border: 1px solid #e2e8f0;
+        border-radius: 6pt 6pt 0 0;
+        padding: 6pt 10pt;
+        font-weight: 600;
+        font-size: 11pt;
+    }
+    .plugin-body {
+        border: 1px solid #e2e8f0;
+        border-top: none;
+        border-radius: 0 0 6pt 6pt;
+        padding: 10pt;
+    }
+
+    /* Sentence Frames */
+    .frame-item {
+        margin-bottom: 8pt;
+        padding-bottom: 6pt;
+        border-bottom: 1px solid #e2e8f0;
+    }
+    .frame-item:last-child { border-bottom: none; }
+    .frame-question { font-weight: 600; margin-bottom: 2pt; }
+    .frame-row { margin-left: 8pt; margin-bottom: 1pt; }
+    .frame-row .label { font-weight: 600; color: #64748b; font-size: 9pt; }
+    .l1-bridge { color: #0284c7; }
+
+    /* Vocab Cards */
+    .vocab-card {
+        border: 1px solid #e2e8f0;
+        border-radius: 4pt;
+        padding: 6pt 8pt;
+        margin-bottom: 6pt;
+    }
+    .vocab-word { font-weight: 700; font-size: 11pt; margin-bottom: 2pt; }
+    .vocab-row { margin-bottom: 1pt; }
+    .vocab-row .label { font-weight: 600; color: #64748b; font-size: 9pt; }
+
+    /* Cognates table */
+    .cognate-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 9pt;
+    }
+    .cognate-table th, .cognate-table td {
+        padding: 4pt 6pt;
+        border: 1px solid #e2e8f0;
+        text-align: left;
+    }
+    .cognate-table th {
+        background: #f1f5f9;
+        font-size: 8pt;
+        text-transform: uppercase;
+        color: #64748b;
+    }
+
+    /* Instruction Explainer */
+    .explainer-box {
+        background: #f0f9ff;
+        padding: 8pt;
+        border-radius: 4pt;
+        margin-bottom: 6pt;
+    }
+    .task-flow-box {
+        background: #f8fafc;
+        padding: 8pt;
+        border-radius: 4pt;
+    }
+    .check-list { padding-left: 16pt; }
+    .check-list li { margin-bottom: 2pt; }
+
+    /* Strategy */
+    .group-card {
+        background: #f8fafc;
+        padding: 4pt 8pt;
+        border-radius: 4pt;
+        margin-bottom: 4pt;
+    }
+
+    /* Translation */
+    .translation-box {
+        border: 1px solid #e2e8f0;
+        border-radius: 4pt;
+        padding: 10pt;
+        line-height: 1.7;
+    }
+
+    .rationale {
+        font-style: italic;
+        color: #64748b;
+        font-size: 9pt;
+        margin-top: 6pt;
+    }
+
+    .status-label {
+        font-size: 8pt;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+    .status-accepted { color: #065f46; }
+    .status-revised { color: #3730a3; }
+    .status-generated { color: #92400e; }
+
+    .page-break { page-break-before: always; }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+    <h1>{{ document.filename }}</h1>
+    <div class="header-meta">
+        <span>Teacher: {{ teacher.name }}</span>
+        <span>Class: {{ class_obj.name }}{% if class_obj.grade_level %} (Grade {{ class_obj.grade_level }}){% endif %}</span>
+        {% if student %}
+        <span>Student: {{ student.pseudonym }}
+            {% if student.heritage_language %}({{ student.heritage_language }}){% endif %}
+            {% if student.english_proficiency_level %}
+            — ELPAC Level {{ student.english_proficiency_level }}
+            {% endif %}
+        </span>
+        {% endif %}
+        <span>Exported: {{ export_date }}</span>
+    </div>
+</div>
+
+<!-- Accommodations -->
+{% if accommodations %}
+<h2>Accommodations</h2>
+
+{% for acc in accommodations %}
+{% set result = acc.generated_output %}
+{% if result and not result.error %}
+<div class="accommodation-section">
+    <div class="plugin-header">
+        {{ plugin_names.get(acc.plugin_id, acc.plugin_id) }}
+        <span class="status-label status-{{ acc.status }}"> [{{ acc.status }}]</span>
+    </div>
+    <div class="plugin-body">
+
+    {% if acc.plugin_id == "sentence_frames" %}
+        {% if result.frames %}
+        {% for frame in result.frames %}
+        <div class="frame-item">
+            <div class="frame-question">Q: {{ frame.question }}</div>
+            <div class="frame-row"><span class="label">Frame:</span> {{ frame.frame }}</div>
+            <div class="frame-row"><span class="label">Starter:</span> {{ frame.starter }}</div>
+            {% if frame.l1_bridge %}
+            <div class="frame-row l1-bridge"><span class="label">L1 Bridge:</span> {{ frame.l1_bridge }}</div>
+            {% endif %}
+        </div>
+        {% endfor %}
+        {% endif %}
+        {% if result.scaffolding_rationale %}
+        <div class="rationale">{{ result.scaffolding_rationale }}</div>
+        {% endif %}
+
+    {% elif acc.plugin_id == "frontloaded_vocab" %}
+        {% if result.vocab_cards %}
+        {% for card in result.vocab_cards %}
+        <div class="vocab-card">
+            <div class="vocab-word">{{ card.word }}</div>
+            <div class="vocab-row"><span class="label">Definition:</span> {{ card.definition }}</div>
+            {% if card.l1_analogue %}
+            <div class="vocab-row"><span class="label">L1:</span> {{ card.l1_analogue }}</div>
+            {% endif %}
+            {% if card.teaching_strategy %}
+            <div class="vocab-row"><span class="label">Strategy:</span> {{ card.teaching_strategy }}</div>
+            {% endif %}
+        </div>
+        {% endfor %}
+        {% endif %}
+
+    {% elif acc.plugin_id == "cognates" %}
+        {% if result.cognate_pairs %}
+        <table class="cognate-table">
+            <thead><tr><th>English</th><th>L1 Cognate</th><th>Note</th></tr></thead>
+            <tbody>
+            {% for pair in result.cognate_pairs %}
+            <tr>
+                <td><strong>{{ pair.english_term }}</strong></td>
+                <td>{{ pair.l1_cognate }}</td>
+                <td>{{ pair.teaching_note or "" }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
+
+    {% elif acc.plugin_id == "instruction_explainer" %}
+        {% if result.l1_instructions %}
+        <h4>Instructions ({{ result.target_language or "L1" }})</h4>
+        <div class="explainer-box">{{ result.l1_instructions }}</div>
+        {% endif %}
+        {% if result.task_flow %}
+        <h4>Task Flow</h4>
+        <div class="task-flow-box">{{ result.task_flow }}</div>
+        {% endif %}
+        {% if result.comprehension_checks %}
+        <h4>Comprehension Checks</h4>
+        <ol class="check-list">
+            {% for check in result.comprehension_checks %}
+            <li>{{ check }}</li>
+            {% endfor %}
+        </ol>
+        {% endif %}
+
+    {% elif acc.plugin_id == "teacher_strategy" %}
+        {% if result.grouping_strategy %}
+        <h4>Grouping Strategy</h4>
+        <p>{{ result.grouping_strategy }}</p>
+        {% endif %}
+        {% if result.groups %}
+        <h4>Suggested Groups</h4>
+        {% for group in result.groups %}
+        <div class="group-card">
+            <strong>Group {{ loop.index }}:</strong>
+            {{ group.members | join(", ") if group.members is iterable and group.members is not string else group }}
+            {% if group.activity %}
+            <div style="font-size:9pt;color:#64748b;">Activity: {{ group.activity }}</div>
+            {% endif %}
+        </div>
+        {% endfor %}
+        {% endif %}
+        {% if result.activity_modifications %}
+        <h4>Activity Modifications</h4>
+        <ul>
+            {% for mod in result.activity_modifications %}
+            <li>{{ mod }}</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+
+    {% elif acc.plugin_id == "translation" %}
+        <div style="margin-bottom:4pt;">
+            <span class="badge badge-info">{{ result.target_language or "Spanish" }}</span>
+            {% if result.grade_level %}
+            <span class="badge badge-primary">Grade {{ result.grade_level }}</span>
+            {% endif %}
+        </div>
+        <div class="translation-box">
+            {{ result.translated_text | replace('\n', '<br>') | safe }}
+        </div>
+
+    {% else %}
+        {# Generic fallback for any other plugin #}
+        {% for key, value in result.items() %}
+        {% if key not in ('error',) %}
+        <div style="margin-bottom:4pt;">
+            <strong>{{ key | replace('_', ' ') | title }}:</strong>
+            {% if value is iterable and value is not string %}
+                <ul>{% for item in value %}<li>{{ item }}</li>{% endfor %}</ul>
+            {% else %}
+                {{ value }}
+            {% endif %}
+        </div>
+        {% endif %}
+        {% endfor %}
+    {% endif %}
+
+    {% if acc.revised_text %}
+    <div style="margin-top:8pt;padding-top:6pt;border-top:1px solid #e2e8f0;">
+        <h4 style="color:#3730a3;">Teacher Revision</h4>
+        <p>{{ acc.revised_text }}</p>
+    </div>
+    {% endif %}
+
+    </div>
+</div>
+{% endif %}
+{% endfor %}
+
+{% else %}
+<p style="color:#64748b;text-align:center;padding:24pt;">No accommodations have been generated yet.</p>
+{% endif %}
+
+</body>
+</html>

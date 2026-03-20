@@ -36,6 +36,28 @@ async def lifespan(app: FastAPI):
         plugin.register_routes(plugin_router)
     app.include_router(plugin_router)
 
+    # Reset documents stuck in pending/processing from a prior crash
+    try:
+        from sqlalchemy import update
+        from accommodation_buddy.db.models import Document
+        from accommodation_buddy.db.session import async_session_factory
+
+        async with async_session_factory() as db:
+            result = await db.execute(
+                update(Document)
+                .where(Document.ocr_status.in_(["pending", "processing"]))
+                .values(
+                    ocr_status="failed",
+                    status_detail="Reset on startup — previous run did not complete",
+                    ocr_progress=0,
+                )
+            )
+            if result.rowcount:
+                logger.info(f"Reset {result.rowcount} stuck document(s) to 'failed'")
+            await db.commit()
+    except Exception:
+        logger.warning("Could not reset stuck documents on startup", exc_info=True)
+
     yield
 
 
@@ -48,7 +70,9 @@ def create_app() -> FastAPI:
     )
 
     # Templates
+    import datetime as _dt
     templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+    templates.env.globals["now"] = lambda: _dt.datetime.now(_dt.timezone.utc)
     app.state.templates = templates
 
     # Static files

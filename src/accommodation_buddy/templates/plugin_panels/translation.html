@@ -1,18 +1,82 @@
-{% include "plugin_panels/_panel_wrapper.html" %}
+<div class="panel-body" id="translation-inner">
+    <div class="translation-panel">
+        <form hx-post="/documents/api/plugins/translation/run"
+              hx-target="#translation-inner"
+              hx-swap="outerHTML"
+              hx-on::before-request="var b=document.getElementById('trans-submit-btn'); if(b){b.disabled=true; b.textContent='Translating with aya:8b...';}">
+            <input type="hidden" name="document_id" value="{{ document_id }}">
+            <input type="hidden" name="class_id" value="{{ class_id }}">
+            {% if student_id %}
+            <input type="hidden" name="student_id" value="{{ student_id }}">
+            {% endif %}
 
-{% if result %}
-<div class="accommodation-result translation-panel">
-    {% if result.error %}
-    <div class="panel-error">{{ result.error }}</div>
-    {% else %}
-    <div class="translation-meta">
-        <span class="badge">{{ result.target_language }}</span>
-        <span class="badge">Grade {{ result.grade_level }}</span>
-        {% if result.domain and result.domain != "General" %}
-        <span class="badge">{{ result.domain }}</span>
+            <div style="display:flex; gap:.5rem; align-items:end; margin-bottom:.5rem;">
+                <div style="flex:1;">
+                    <label for="trans-grade" style="font-size:.78rem;">Grade Level</label>
+                    <select name="grade_level" id="trans-grade" class="form-control form-control-sm" style="padding:.3rem;">
+                        <option value="">Class default</option>
+                        <option value="K">K</option>
+                        <option value="1">1st</option>
+                        <option value="2">2nd</option>
+                        <option value="3">3rd</option>
+                        <option value="4">4th</option>
+                        <option value="5">5th</option>
+                        <option value="6">6th</option>
+                        <option value="7">7th</option>
+                        <option value="8">8th</option>
+                        <option value="9">9th</option>
+                        <option value="10">10th</option>
+                        <option value="11">11th</option>
+                        <option value="12">12th</option>
+                    </select>
+                </div>
+                <button id="trans-submit-btn" type="submit" class="btn btn-sm btn-primary"
+                        style="white-space:nowrap; padding:.35rem .75rem;">
+                    Translate
+                </button>
+            </div>
+
+            <div>
+                <label for="trans-text" style="font-size:.78rem;">Text <span style="color:var(--text-muted)">(blank = full doc)</span></label>
+                <textarea name="custom_text" id="trans-text" rows="2" class="form-control form-control-sm"
+                          style="font-size:.8rem;"
+                          placeholder="Paste specific text here, or leave blank..."></textarea>
+            </div>
+        </form>
+
+        {% if result %}
+        <hr style="margin: .75rem 0 .5rem;">
+        {% if result.error %}
+        <div class="panel-error">{{ result.error }}</div>
+        {% else %}
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:.4rem;">
+            <div>
+                <span class="badge">{{ result.target_language }}</span>
+                <span class="badge">Grade {{ result.grade_level }}</span>
+            </div>
+            <button class="btn btn-xs btn-success" id="paste-translation-btn">
+                Paste below English
+            </button>
+            <script>
+                document.getElementById('paste-translation-btn').addEventListener('click', function() {
+                    var docContent = document.querySelector('.doc-content');
+                    var docText = document.querySelector('.doc-text');
+                    var translationHtml = document.getElementById('translation-result').innerHTML;
+                    var divider = document.createElement('div');
+                    divider.innerHTML = '<hr style="margin:2rem 0;border-top:3px solid var(--primary)">'
+                        + '<h2 style="color:var(--primary)">Traducci\u00f3n (Grade {{ result.grade_level }})</h2>'
+                        + translationHtml;
+                    docText.appendChild(divider);
+                    divider.scrollIntoView({ behavior: 'smooth' });
+                    this.textContent = 'Pasted!';
+                    this.disabled = true;
+                });
+            </script>
+        </div>
+        <div class="translated-text" id="translation-result" style="max-height:60vh; overflow-y:auto; border:1px solid var(--border); border-radius:4px; padding:.5rem; font-size:.82rem;">
+            {{ result.translated_text | replace('\n', '<br>') | safe }}
+        </div>
+        {% endif %}
         {% endif %}
     </div>
-    <div class="translated-text">{{ result.translated_text | replace('\n', '<br>') | safe }}</div>
-    {% endif %}
 </div>
-{% endif %}

@@ -15,6 +15,13 @@
                 <label for="file">Choose file (PDF, DOCX, PPTX, or image)</label>
                 <input type="file" id="file" name="file" accept=".pdf,.docx,.doc,.pptx,.ppt,.png,.jpg,.jpeg,.gif,.bmp,.tiff,.webp" required>
             </div>
+            <div class="form-group">
+                <label for="ocr_mode">OCR Mode (PDF/image only)</label>
+                <select id="ocr_mode" name="ocr_mode">
+                    <option value="fast" selected>Fast (Tesseract) — ~15s</option>
+                    <option value="llm">LLM Vision — slower, better for diagrams</option>
+                </select>
+            </div>
             <button type="submit" class="btn btn-primary">Upload & Extract</button>
         </div>
     </form>
@@ -48,6 +55,12 @@
                     {% if doc.status_detail %}
                     <div class="status-detail">{{ doc.status_detail }}</div>
                     {% endif %}
+                    {% if doc.ocr_status in ('pending', 'processing') and doc.created_at %}
+                    {% set elapsed = (now().timestamp() - doc.created_at.timestamp()) | int %}
+                    {% set mins = elapsed // 60 %}
+                    {% set secs = elapsed % 60 %}
+                    <div class="status-detail">Elapsed: {% if mins %}{{ mins }}m {% endif %}{{ secs }}s</div>
+                    {% endif %}
                     {% if doc.ocr_status == 'processing' and doc.ocr_progress is not none %}
                     <div class="progress-bar-container">
                         <div class="progress-bar" style="width: {{ doc.ocr_progress }}%"></div>
@@ -56,16 +69,29 @@
                     {% endif %}
                 </td>
                 <td>{{ doc.created_at.strftime('%Y-%m-%d %H:%M') if doc.created_at else '' }}</td>
-                <td>
+                <td class="actions-cell">
                     {% if doc.ocr_status == 'complete' %}
                     <a href="/documents/{{ class_obj.id }}/{{ doc.id }}" class="btn btn-sm btn-primary">View & Accommodate</a>
                     {% elif doc.ocr_status == 'failed' %}
                     <span class="text-error">Failed</span>
                     {% else %}
                     <span class="text-muted processing-indicator">
-                        <span class="spinner"></span> Processing
+                        <span class="spinner"></span>
+                        {% if doc.status_detail and 'page' in doc.status_detail %}
+                        {{ doc.status_detail }}
+                        {% else %}
+                        Processing
+                        {% endif %}
                     </span>
+                    <form method="post" action="/documents/{{ class_obj.id }}/{{ doc.id }}/cancel" style="display:inline">
+                        <button type="submit" class="btn btn-sm btn-warning">Cancel</button>
+                    </form>
                     {% endif %}
+                    <form method="post" action="/documents/{{ class_obj.id }}/{{ doc.id }}/delete"
+                          style="display:inline"
+                          onsubmit="return confirm('Delete this document?')">
+                        <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                    </form>
                 </td>
             </tr>
             {% endfor %}
